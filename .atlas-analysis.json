@@ -1,0 +1,102 @@
+{
+  "projectType": "saas",
+  "projectName": "LiquidLauncher",
+  "projectDescription": "The official Minecraft launcher for LiquidBounce with mod support and account management",
+  "theme": "aspen",
+  "primaryColor": "#4474fc",
+  "lightColor": "#98b4fc",
+  "darkColor": "#046cfc",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "user-guide/account-management",
+              "user-guide/launching-games",
+              "user-guide/mods-management",
+              "user-guide/settings"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/auto-updates",
+              "features/multiple-accounts",
+              "features/java-management",
+              "features/version-selection",
+              "features/custom-mods"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-issues",
+              "troubleshooting/faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "development/building-from-source",
+              "development/contributing"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "development/architecture/overview",
+              "development/architecture/backend",
+              "development/architecture/frontend",
+              "development/architecture/launcher-core"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "development/api/tauri-commands",
+              "development/api/authentication",
+              "development/api/client-api"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Microsoft & offline account authentication",
+    "Automatic game updates and version management",
+    "Custom mod installation and management",
+    "Java runtime auto-download and configuration",
+    "Multiple account support",
+    "Premium features integration",
+    "Cross-platform desktop application (Windows, macOS, Linux)"
+  ],
+  "publicApiSurface": [
+    "login_microsoft() - Authenticate with Microsoft account",
+    "login_offline() - Create offline account",
+    "client_account_authenticate() - Authenticate LiquidBounce account",
+    "run_client() - Launch Minecraft with LiquidBounce",
+    "request_branches() - Get available build branches",
+    "request_builds() - Get builds for a branch",
+    "request_mods() - Fetch available mods",
+    "install_custom_mod() - Install custom mod file",
+    "delete_custom_mod() - Remove custom mod",
+    "terminate() - Stop running game instance"
+  ]
+}
