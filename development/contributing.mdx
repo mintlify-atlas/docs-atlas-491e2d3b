@@ -1,0 +1,384 @@
+---
+title: Contributing
+description: Guidelines for contributing to LiquidLauncher development
+---
+
+We appreciate contributions to LiquidLauncher! Whether you're fixing bugs, adding features, or improving documentation, your help makes the project better for everyone.
+
+## Getting Started
+
+Before contributing, make sure you're familiar with the project:
+
+<Steps>
+  <Step title="Read the documentation">
+    Familiarize yourself with LiquidLauncher's features and architecture.
+  </Step>
+  
+  <Step title="Set up your development environment">
+    Follow the [Building from Source](/development/building-from-source) guide to get the project running locally.
+  </Step>
+  
+  <Step title="Check existing issues">
+    Browse [open issues](https://github.com/CCBlueX/LiquidLauncher/issues) to see if someone is already working on what you have in mind.
+  </Step>
+</Steps>
+
+## Code of Conduct
+
+Be respectful and constructive in all interactions. We're building this together as a community.
+
+## Project Structure
+
+Understanding the codebase will help you make effective contributions:
+
+<Accordion title="Frontend (Svelte)">
+  Located in the `src/` directory:
+  
+  ```
+  src/
+  ├── App.svelte           # Main application component
+  ├── app.css              # Global styles
+  ├── main.js              # Application entry point
+  ├── lib/                 # Reusable components
+  │   ├── views/           # Main view components
+  │   ├── components/      # UI components
+  │   └── utils/           # Utility functions
+  └── font/                # Custom fonts
+  ```
+  
+  The frontend is built with:
+  - **Svelte 4** - Reactive UI framework
+  - **Vite** - Fast build tool and dev server
+  - **Tauri APIs** - Bridge to Rust backend
+</Accordion>
+
+<Accordion title="Backend (Rust)">
+  Located in the `src-tauri/` directory:
+  
+  ```
+  src-tauri/
+  ├── src/                 # Rust source code
+  │   ├── main.rs          # Application entry point
+  │   ├── auth/            # Authentication logic
+  │   ├── minecraft/       # Minecraft-specific functionality
+  │   └── utils/           # Shared utilities
+  ├── Cargo.toml           # Rust dependencies
+  ├── build.rs             # Build script
+  └── tauri.conf.json      # Tauri configuration
+  ```
+  
+  Key backend components:
+  - **Tauri 2.x** - Desktop app framework
+  - **Tokio** - Async runtime
+  - **Reqwest** - HTTP client for API calls
+  - **OAuth2** - Authentication handling
+  - **azalea-auth** - Minecraft authentication
+</Accordion>
+
+<Accordion title="Configuration Files">
+  - `package.json` - Node.js dependencies and scripts
+  - `Cargo.toml` - Rust dependencies and metadata
+  - `rust-toolchain.toml` - Rust toolchain version (nightly-2026-01-14)
+  - `vite.config.js` - Vite bundler configuration
+  - `tauri.conf.json` - Tauri app configuration
+</Accordion>
+
+## How to Contribute
+
+### Reporting Issues
+
+Found a bug? [Open an issue](https://github.com/CCBlueX/LiquidLauncher/issues) with:
+
+<Steps>
+  <Step title="Clear title">
+    Use a descriptive title that summarizes the problem.
+  </Step>
+  
+  <Step title="Reproduction steps">
+    Provide step-by-step instructions to reproduce the issue.
+  </Step>
+  
+  <Step title="Expected vs actual behavior">
+    Describe what you expected to happen and what actually happened.
+  </Step>
+  
+  <Step title="Environment details">
+    Include your OS, LiquidLauncher version, and any relevant system information.
+  </Step>
+  
+  <Step title="Logs and screenshots">
+    Attach error logs, console output, or screenshots if applicable.
+  </Step>
+</Steps>
+
+### Suggesting Features
+
+Have an idea for improvement? We'd love to hear it!
+
+<Note>
+  Before suggesting a feature, search existing issues to avoid duplicates. If found, add your thoughts to the existing discussion.
+</Note>
+
+When proposing a feature:
+- Explain the problem it solves
+- Describe your proposed solution
+- Consider implementation complexity
+- Think about backward compatibility
+
+### Submitting Code
+
+<Steps>
+  <Step title="Fork the repository">
+    Create your own fork of the [LiquidLauncher repository](https://github.com/CCBlueX/LiquidLauncher).
+  </Step>
+  
+  <Step title="Create a feature branch">
+    Create a branch for your changes:
+    
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+    
+    Use descriptive branch names:
+    - `feature/add-dark-theme`
+    - `fix/login-crash`
+    - `refactor/auth-module`
+  </Step>
+  
+  <Step title="Make your changes">
+    Write clean, well-documented code following the project's style:
+    
+    - **Rust**: Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
+    - **JavaScript/Svelte**: Use consistent formatting (project uses standard conventions)
+    - Add comments for complex logic
+    - Keep functions focused and modular
+  </Step>
+  
+  <Step title="Test your changes">
+    Ensure your code works correctly:
+    
+    ```bash
+    # Test in development mode
+    bun run tauri dev
+    
+    # Build and test production version
+    bun run tauri build
+    ```
+    
+    <Warning>
+      Always test both development and production builds, as they can behave differently.
+    </Warning>
+  </Step>
+  
+  <Step title="Commit your changes">
+    Write clear, concise commit messages:
+    
+    ```bash
+    git commit -m "feat: add automatic update checking"
+    git commit -m "fix: resolve crash on Linux systems"
+    git commit -m "refactor: improve auth error handling"
+    ```
+    
+    Use conventional commit prefixes:
+    - `feat:` - New feature
+    - `fix:` - Bug fix
+    - `refactor:` - Code refactoring
+    - `docs:` - Documentation changes
+    - `style:` - Code style changes (formatting)
+    - `test:` - Test additions or changes
+    - `chore:` - Maintenance tasks
+  </Step>
+  
+  <Step title="Push to your fork">
+    Push your branch to GitHub:
+    
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+  </Step>
+  
+  <Step title="Open a Pull Request">
+    Go to the [LiquidLauncher repository](https://github.com/CCBlueX/LiquidLauncher) and open a pull request.
+    
+    In your PR description:
+    - Summarize your changes
+    - Reference related issues (e.g., "Closes #123")
+    - Explain your approach if complex
+    - Include screenshots for UI changes
+    - List any breaking changes
+  </Step>
+</Steps>
+
+## Pull Request Guidelines
+
+<CardGroup cols={2}>
+  <Card title="Keep it focused" icon="bullseye">
+    One PR should address one issue or feature. Split large changes into multiple PRs.
+  </Card>
+  
+  <Card title="Update documentation" icon="book">
+    If your changes affect user-facing features, update the relevant documentation.
+  </Card>
+  
+  <Card title="Maintain compatibility" icon="shield-check">
+    Avoid breaking changes unless absolutely necessary. Discuss major changes first.
+  </Card>
+  
+  <Card title="Be responsive" icon="comments">
+    Respond to review comments and be open to feedback and suggestions.
+  </Card>
+</CardGroup>
+
+## Code Style
+
+### Rust
+
+<CodeGroup>
+```rust Good
+// Use descriptive names and add documentation
+/// Authenticates a user with Microsoft OAuth
+pub async fn authenticate_microsoft(client_id: &str) -> Result<Token> {
+    // Implementation
+}
+```
+
+```rust Bad
+// Unclear function name, no documentation
+pub async fn auth(id: &str) -> Result<Token> {
+    // Implementation
+}
+```
+</CodeGroup>
+
+<Tip>
+  Run `cargo fmt` to automatically format Rust code according to project standards.
+</Tip>
+
+### JavaScript/Svelte
+
+<CodeGroup>
+```javascript Good
+// Use const/let, descriptive names
+const fetchUserProfile = async (userId) => {
+  const response = await invoke('get_profile', { userId });
+  return response;
+};
+```
+
+```javascript Bad
+// Using var, unclear names
+var get = async (id) => {
+  var r = await invoke('get_profile', { userId: id });
+  return r;
+};
+```
+</CodeGroup>
+
+## Licensing
+
+LiquidLauncher is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+<Warning>
+  **Important licensing requirements:**
+  
+  By contributing to LiquidLauncher, you agree that your contributions will be licensed under the GPL-3.0. This means:
+  
+  - You must disclose the source code of any modified versions
+  - Modified versions must also be licensed under GPL-3.0
+  - You cannot use code from this project in closed-source applications
+  - You must preserve copyright notices and license information
+</Warning>
+
+### What This Means for Contributors
+
+You are free to:
+- Use the code
+- Share the code
+- Modify the code
+
+However:
+- **You must share your source code** if you distribute modified versions
+- **Your modifications must also be GPL-3.0 licensed**
+- You cannot incorporate this code into proprietary software
+
+<Tip>
+  Read the full [LICENSE](https://github.com/CCBlueX/LiquidLauncher/blob/main/LICENSE) file for complete details.
+</Tip>
+
+## Development Resources
+
+<CardGroup cols={2}>
+  <Card title="Tauri Documentation" icon="book" href="https://tauri.app/">
+    Learn about the Tauri framework
+  </Card>
+  
+  <Card title="Svelte Documentation" icon="book" href="https://svelte.dev/docs">
+    Svelte framework reference
+  </Card>
+  
+  <Card title="Rust Book" icon="book" href="https://doc.rust-lang.org/book/">
+    Official Rust programming guide
+  </Card>
+  
+  <Card title="GitHub Repository" icon="github" href="https://github.com/CCBlueX/LiquidLauncher">
+    View source code and issues
+  </Card>
+</CardGroup>
+
+## Community
+
+Connect with other developers:
+
+- **Forum**: [forums.ccbluex.net](https://forums.ccbluex.net)
+- **Guilded**: [guilded.gg/CCBlueX](https://guilded.gg/CCBlueX)
+- **GitHub Issues**: For bug reports and feature requests
+
+## Getting Help
+
+<AccordionGroup>
+  <Accordion title="I'm new to Rust/Svelte">
+    That's okay! Start with small contributions like:
+    - Fixing typos in documentation
+    - Adding comments to unclear code
+    - Improving error messages
+    - Testing and reporting bugs
+    
+    Check the [Resources](#development-resources) section for learning materials.
+  </Accordion>
+  
+  <Accordion title="I don't know where to start">
+    Look for issues labeled:
+    - `good first issue` - Perfect for newcomers
+    - `help wanted` - Maintainers need assistance
+    - `documentation` - Improve docs
+    
+    Browse the [issue tracker](https://github.com/CCBlueX/LiquidLauncher/issues) for these labels.
+  </Accordion>
+  
+  <Accordion title="My PR was rejected">
+    Don't be discouraged! Common reasons include:
+    - Changes don't align with project goals
+    - Code quality or style issues
+    - Missing tests or documentation
+    - Breaking changes without discussion
+    
+    Ask for feedback and learn from the review. Every contributor started somewhere!
+  </Accordion>
+  
+  <Accordion title="How long until my PR is reviewed?">
+    Maintainers review PRs as time permits. You can:
+    - Ensure your PR is complete and well-documented
+    - Be patient and responsive to feedback
+    - Avoid bumping the PR unnecessarily
+    
+    Complex changes may take longer to review than simple fixes.
+  </Accordion>
+</AccordionGroup>
+
+## Thank You!
+
+Your contributions help make LiquidLauncher better for everyone. We appreciate the time and effort you put into improving the project.
+
+<Card title="Ready to contribute?" icon="rocket">
+  Check out [open issues](https://github.com/CCBlueX/LiquidLauncher/issues) or start by [building from source](/development/building-from-source).
+</Card>

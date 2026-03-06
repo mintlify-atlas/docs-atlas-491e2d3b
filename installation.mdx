@@ -1,0 +1,410 @@
+---
+title: Installation
+description: Download and install LiquidLauncher on Windows, macOS, and Linux
+---
+
+## System Requirements
+
+Before installing LiquidLauncher, ensure your system meets these requirements:
+
+<AccordionGroup>
+  <Accordion title="Windows Requirements" icon="windows">
+    - **OS**: Windows 10 or later
+    - **RAM**: Minimum 4 GB (8 GB or more recommended for optimal performance)
+    - **Disk Space**: At least 2 GB free space for launcher and game files
+    - **WebView2**: Automatically installed with the launcher
+  </Accordion>
+
+  <Accordion title="macOS Requirements" icon="apple">
+    - **OS**: macOS 10.15 (Catalina) or later
+    - **Architecture**: Support for both Intel (x86_64) and Apple Silicon (ARM64)
+    - **RAM**: Minimum 4 GB (8 GB or more recommended)
+    - **Disk Space**: At least 2 GB free space
+  </Accordion>
+
+  <Accordion title="Linux Requirements" icon="linux">
+    - **OS**: Ubuntu 22.04 or equivalent (any modern distribution with GTK 3.24+)
+    - **Dependencies**: `libwebkit2gtk-4.1`, `libappindicator3`, `libglib2.0-0`
+    - **RAM**: Minimum 4 GB (8 GB or more recommended)
+    - **Disk Space**: At least 2 GB free space
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  LiquidLauncher automatically manages Java runtime downloads. You don't need to install Java manually.
+</Note>
+
+## Download LiquidLauncher
+
+Download the latest version of LiquidLauncher for your operating system:
+
+<CardGroup cols={3}>
+  <Card title="Windows" icon="windows" href="https://github.com/CCBlueX/LiquidLauncher/releases/latest">
+    Download the `.msi` or `.exe` installer
+  </Card>
+  <Card title="macOS" icon="apple" href="https://github.com/CCBlueX/LiquidLauncher/releases/latest">
+    Download the `.dmg` for Intel or Apple Silicon
+  </Card>
+  <Card title="Linux" icon="linux" href="https://github.com/CCBlueX/LiquidLauncher/releases/latest">
+    Download the `.AppImage` or `.deb` package
+  </Card>
+</CardGroup>
+
+<Tip>
+  Visit the [GitHub Releases](https://github.com/CCBlueX/LiquidLauncher/releases/latest) page to find the latest version and see release notes.
+</Tip>
+
+## Installation Instructions
+
+<Tabs>
+  <Tab title="Windows">
+    <Steps>
+      <Step title="Download the Installer">
+        Download either the `.msi` or `.exe` installer from the [releases page](https://github.com/CCBlueX/LiquidLauncher/releases/latest).
+
+        <Note>
+          The `.msi` installer is recommended for most users. The `.exe` is a portable installer.
+        </Note>
+      </Step>
+
+      <Step title="Run the Installer">
+        Double-click the downloaded installer file. Windows may show a security warning:
+        
+        - Click **More info** if you see "Windows protected your PC"
+        - Then click **Run anyway**
+        
+        This is normal for applications that aren't widely distributed yet.
+      </Step>
+
+      <Step title="Complete Installation">
+        Follow the installation wizard:
+        
+        1. Accept the license agreement
+        2. Choose installation location (default is recommended)
+        3. Click **Install**
+        4. Wait for the installation to complete
+        
+        The WebView2 runtime will be installed automatically if needed.
+      </Step>
+
+      <Step title="Launch the Application">
+        Once installed, launch LiquidLauncher from:
+        
+        - Start Menu shortcut
+        - Desktop shortcut (if created)
+        - Or navigate to the installation directory
+      </Step>
+    </Steps>
+
+    ### Troubleshooting Windows Installation
+
+    <AccordionGroup>
+      <Accordion title="WebView2 Installation Failed" icon="triangle-exclamation">
+        If WebView2 fails to install automatically:
+        
+        1. Download [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) manually
+        2. Install it before running LiquidLauncher
+        3. Restart your computer and try again
+      </Accordion>
+
+      <Accordion title="Antivirus Blocking Installation" icon="shield-halved">
+        Some antivirus software may flag the installer:
+        
+        1. Add an exception for LiquidLauncher in your antivirus
+        2. Temporarily disable antivirus during installation
+        3. Download from official sources only to ensure file integrity
+      </Accordion>
+
+      <Accordion title="Cannot Write to Installation Directory" icon="folder-xmark">
+        If you get permission errors:
+        
+        1. Right-click the installer
+        2. Select **Run as administrator**
+        3. Choose a different installation directory with write permissions
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+
+  <Tab title="macOS">
+    <Steps>
+      <Step title="Download the DMG">
+        Download the appropriate `.dmg` file for your Mac:
+        
+        - **Apple Silicon (M1/M2/M3)**: `LiquidLauncher_aarch64.dmg`
+        - **Intel**: `LiquidLauncher_x64.dmg`
+        
+        <Tip>
+          Not sure which chip you have? Click the Apple menu → **About This Mac** to check.
+        </Tip>
+      </Step>
+
+      <Step title="Open the DMG">
+        Double-click the downloaded `.dmg` file to mount it. A Finder window will open.
+      </Step>
+
+      <Step title="Install the Application">
+        Drag the **LiquidLauncher** icon to the **Applications** folder in the Finder window.
+      </Step>
+
+      <Step title="Launch LiquidLauncher">
+        Open LiquidLauncher from your Applications folder.
+        
+        **First launch**: macOS will show a security warning because the app isn't from the App Store:
+        
+        1. Click **OK** to dismiss the warning
+        2. Open **System Settings** → **Privacy & Security**
+        3. Click **Open Anyway** next to the LiquidLauncher message
+        4. Confirm by clicking **Open**
+      </Step>
+    </Steps>
+
+    ### Troubleshooting macOS Installation
+
+    <AccordionGroup>
+      <Accordion title="'LiquidLauncher' cannot be opened" icon="lock">
+        If macOS blocks the app from opening:
+        
+        **Method 1: Using System Settings**
+        1. Go to **System Settings** → **Privacy & Security**
+        2. Scroll to the **Security** section
+        3. Click **Open Anyway** next to LiquidLauncher
+        
+        **Method 2: Using Terminal**
+        ```bash
+        xattr -cr /Applications/LiquidLauncher.app
+        ```
+      </Accordion>
+
+      <Accordion title="App is damaged and can't be opened" icon="triangle-exclamation">
+        This can happen if the download was corrupted:
+        
+        1. Delete the downloaded `.dmg` file
+        2. Clear your browser cache
+        3. Download the file again from the official GitHub releases
+        4. Verify the file size matches what's shown on GitHub
+      </Accordion>
+
+      <Accordion title="Wrong Architecture Downloaded" icon="chip">
+        If the app won't launch:
+        
+        1. Check your Mac's chip type: Apple menu → **About This Mac**
+        2. Download the correct version:
+           - **Apple Silicon**: ARM64/aarch64 version
+           - **Intel**: x64/x86_64 version
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+
+  <Tab title="Linux">
+    <Steps>
+      <Step title="Download the Package">
+        Download the appropriate package for your distribution:
+        
+        - **AppImage**: Universal, works on all distributions
+        - **DEB**: For Debian/Ubuntu-based distributions
+        
+        <Tip>
+          AppImage is recommended if you're unsure which to choose.
+        </Tip>
+      </Step>
+
+      <Step title="Install Dependencies">
+        Install required system libraries:
+        
+        **Ubuntu/Debian:**
+        ```bash
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+          librsvg2-dev libglib2.0-0 libx11-dev xorg-dev libglu1-mesa-dev
+        ```
+        
+        **Fedora:**
+        ```bash
+        sudo dnf install webkit2gtk4.1 libappindicator-gtk3 librsvg2 glib2
+        ```
+        
+        **Arch:**
+        ```bash
+        sudo pacman -S webkit2gtk libappindicator-gtk3 librsvg glib2
+        ```
+      </Step>
+
+      <Step title="Install LiquidLauncher">
+        <Tabs>
+          <Tab title="AppImage">
+            Make the AppImage executable and run it:
+            
+            ```bash
+            chmod +x LiquidLauncher_*.AppImage
+            ./LiquidLauncher_*.AppImage
+            ```
+            
+            **Optional**: Move it to a system location:
+            ```bash
+            sudo mv LiquidLauncher_*.AppImage /usr/local/bin/liquidlauncher
+            ```
+          </Tab>
+          
+          <Tab title="DEB Package">
+            Install the DEB package:
+            
+            ```bash
+            sudo dpkg -i liquidlauncher_*.deb
+            ```
+            
+            If you get dependency errors:
+            ```bash
+            sudo apt-get install -f
+            ```
+          </Tab>
+        </Tabs>
+      </Step>
+
+      <Step title="Launch the Application">
+        Run LiquidLauncher from:
+        
+        - Application menu (search for "LiquidLauncher")
+        - Terminal: `liquidlauncher` (if installed system-wide)
+        - Or double-click the AppImage file
+      </Step>
+    </Steps>
+
+    ### Troubleshooting Linux Installation
+
+    <AccordionGroup>
+      <Accordion title="Missing Dependencies" icon="puzzle-piece">
+        If you get library errors:
+        
+        ```bash
+        ldd ./LiquidLauncher_*.AppImage
+        ```
+        
+        This shows which libraries are missing. Install them using your package manager.
+      </Accordion>
+
+      <Accordion title="AppImage Won't Launch" icon="terminal">
+        If the AppImage doesn't start:
+        
+        1. Check if it's executable: `ls -l LiquidLauncher_*.AppImage`
+        2. Make it executable: `chmod +x LiquidLauncher_*.AppImage`
+        3. Try running from terminal to see error messages
+        4. Ensure FUSE is installed: `sudo apt-get install fuse`
+      </Accordion>
+
+      <Accordion title="Wayland Compatibility Issues" icon="desktop">
+        If you're using Wayland and experience issues:
+        
+        Try forcing X11 mode:
+        ```bash
+        GDK_BACKEND=x11 ./LiquidLauncher_*.AppImage
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+</Tabs>
+
+## First Launch Setup
+
+After installation, LiquidLauncher will:
+
+1. **Create data directories** in your system's default location:
+   - **Windows**: `%APPDATA%\LiquidLauncher`
+   - **macOS**: `~/Library/Application Support/LiquidLauncher`
+   - **Linux**: `~/.local/share/LiquidLauncher`
+
+2. **Check for updates** automatically on startup
+
+3. **Initialize configuration** with default settings
+
+<Info>
+  You can change the data directory location later in **Settings** → **General** → **Data Location**.
+</Info>
+
+## Next Steps
+
+Now that you have LiquidLauncher installed, continue to the [Quickstart Guide](/quickstart) to:
+
+- Set up your Minecraft account
+- Select a LiquidBounce version
+- Launch your first game
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Get up and running in minutes
+  </Card>
+  <Card title="Account Management" icon="user" href="/user-guide/account-management">
+    Learn about Microsoft and offline accounts
+  </Card>
+</CardGroup>
+
+## Updating LiquidLauncher
+
+LiquidLauncher includes automatic update functionality:
+
+<Steps>
+  <Step title="Automatic Check">
+    The launcher checks for updates every time it starts.
+  </Step>
+  
+  <Step title="Update Notification">
+    If an update is available, you'll see a prompt:
+    
+    > "A Launcher update is available. Would you like to install it now?"
+  </Step>
+  
+  <Step title="Download and Install">
+    Click **Yes** to download and install the update. The launcher will restart automatically.
+  </Step>
+</Steps>
+
+<Warning>
+  Don't close the launcher while an update is being installed. This could corrupt the installation.
+</Warning>
+
+## Uninstallation
+
+If you need to uninstall LiquidLauncher:
+
+<Tabs>
+  <Tab title="Windows">
+    1. Open **Settings** → **Apps** → **Installed apps**
+    2. Search for "LiquidLauncher"
+    3. Click the three dots → **Uninstall**
+    4. Follow the uninstaller prompts
+    
+    To remove all data:
+    ```powershell
+    Remove-Item -Recurse -Force $env:APPDATA\LiquidLauncher
+    ```
+  </Tab>
+  
+  <Tab title="macOS">
+    1. Open **Finder** → **Applications**
+    2. Drag **LiquidLauncher** to the Trash
+    3. Empty the Trash
+    
+    To remove all data:
+    ```bash
+    rm -rf ~/Library/Application\ Support/LiquidLauncher
+    ```
+  </Tab>
+  
+  <Tab title="Linux">
+    **For DEB package:**
+    ```bash
+    sudo apt-get remove liquidlauncher
+    ```
+    
+    **For AppImage:**
+    Simply delete the AppImage file.
+    
+    To remove all data:
+    ```bash
+    rm -rf ~/.local/share/LiquidLauncher
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Your Minecraft game files and LiquidBounce data are stored separately and won't be removed by uninstalling the launcher.
+</Note>

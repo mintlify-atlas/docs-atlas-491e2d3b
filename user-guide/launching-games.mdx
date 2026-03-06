@@ -1,0 +1,417 @@
+---
+title: Launching Games
+description: How to select versions, configure launch options, and start Minecraft
+---
+
+LiquidLauncher provides a powerful game launching system that handles version management, resource downloading, and process execution automatically.
+
+## Quick Start
+
+<Steps>
+  <Step title="Select Branch">
+    Choose your preferred LiquidBounce branch (e.g., nextgen, legacy)
+  </Step>
+  
+  <Step title="Select Build">
+    Pick a specific build version or use the latest
+  </Step>
+  
+  <Step title="Configure Options">
+    Set memory allocation, Java distribution, and other launch parameters
+  </Step>
+  
+  <Step title="Launch">
+    Click play and the launcher handles the rest!
+  </Step>
+</Steps>
+
+## Selecting Branches and Builds
+
+### Requesting Available Branches
+
+The launcher fetches available branches from the LiquidBounce API:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:43
+#[tauri::command]
+pub(crate) async fn request_branches(client: Client) -> Result<Branches, String> {
+    let branches = (|| async { client.branches().await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request branches. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request branches: {:?}", e))?;
+
+    Ok(branches)
+}
+```
+
+<Note>
+  The launcher uses exponential backoff to retry failed requests, ensuring reliable branch fetching even with network issues.
+</Note>
+
+### Fetching Builds for a Branch
+
+Once you've selected a branch, fetch available builds:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:56
+#[tauri::command]
+pub(crate) async fn request_builds(
+    client: Client, 
+    branch: &str, 
+    release: bool
+) -> Result<Vec<Build>, String> {
+    let builds = (|| async { client.builds_by_branch(branch, release).await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request builds. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request builds: {:?}", e))?;
+
+    Ok(builds)
+}
+```
+
+<ParamField path="branch" type="string" required>
+  The branch name (e.g., "nextgen", "legacy")
+</ParamField>
+
+<ParamField path="release" type="boolean" required>
+  Whether to show only release builds (true) or include nightly builds (false)
+</ParamField>
+
+## Launch Parameters
+
+The launcher uses a comprehensive `StartParameter` structure to configure game launching:
+
+```rust
+// From: src-tauri/src/minecraft/launcher/mod.rs:263
+pub struct StartParameter {
+    pub java_distribution: DistributionSelection,
+    pub jvm_args: Vec<String>,
+    pub memory: u64,
+    pub custom_data_path: Option<String>,
+    pub auth_player_name: String,
+    pub auth_uuid: String,
+    pub auth_access_token: String,
+    pub auth_xuid: String,
+    pub clientid: String,
+    pub user_type: String,
+    pub keep_launcher_open: bool,
+    pub concurrent_downloads: u32,
+    pub client: Client,
+    pub client_account: Option<ClientAccount>,
+    pub skip_advertisement: bool,
+}
+```
+
+### Key Parameters
+
+<ParamField path="java_distribution" type="DistributionSelection">
+  Java runtime to use. Options:
+  - `Automatic`: Let the launcher choose (recommended)
+  - `Custom`: Specify a custom Java path
+  - `Manual`: Choose specific distribution (Temurin, GraalVM, Zulu)
+</ParamField>
+
+<ParamField path="jvm_args" type="Vec<String>">
+  Custom JVM arguments to pass to Java (e.g., `-XX:+UseG1GC`)
+</ParamField>
+
+<ParamField path="memory" type="u64" default="4096">
+  Memory allocation in megabytes
+</ParamField>
+
+<ParamField path="custom_data_path" type="Option<String>">
+  Custom directory for game data. If empty, uses default launcher directory
+</ParamField>
+
+<ParamField path="keep_launcher_open" type="boolean" default="false">
+  Whether to keep the launcher window open after game starts
+</ParamField>
+
+<ParamField path="concurrent_downloads" type="u32" default="10">
+  Number of parallel downloads for assets and libraries
+</ParamField>
+
+## Running the Client
+
+The main launch command orchestrates the entire launch process:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:260
+#[tauri::command]
+pub(crate) async fn run_client(
+    client: Client,
+    build_id: u32,
+    options: Options,
+    mods: Vec<LoaderMod>,
+    window: Window,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // Prevent multiple instances
+    if runner_instance.lock()?.is_some() {
+        return Err("client is already running".to_string());
+    }
+
+    // Fetch launch manifest
+    let launch_manifest = client.fetch_launch_manifest(build_id).await?;
+
+    // Extract account credentials
+    let (account_name, uuid, token, user_type) = match minecraft_account {
+        MinecraftAccount::MsaAccount { profile, mca, .. } => (
+            profile.name,
+            profile.id.to_string(),
+            mca.data.access_token,
+            "msa".to_string(),
+        ),
+        MinecraftAccount::OfflineAccount { name, id, .. } => (
+            name,
+            id.to_string(),
+            "-".to_string(),
+            "legacy".to_string()
+        )
+    };
+
+    // Build launch parameters
+    let parameters = StartParameter {
+        java_distribution: options.start_options.java_distribution,
+        jvm_args: options.start_options.jvm_args.unwrap_or_else(|| vec![]),
+        memory: options.start_options.memory,
+        // ... other parameters
+    };
+
+    // Launch in separate thread
+    thread::spawn(move || {
+        prelauncher::launch(launch_manifest, parameters, mods, launcher_data).await
+    });
+
+    Ok(())
+}
+```
+
+### Launch Process
+
+The launcher performs these steps automatically:
+
+<Steps>
+  <Step title="Validation">
+    Checks that no client is already running and validates account selection
+  </Step>
+  
+  <Step title="Manifest Download">
+    Fetches the launch manifest for the selected build
+    
+    ```rust
+    let launch_manifest = client.fetch_launch_manifest(build_id).await
+    ```
+  </Step>
+  
+  <Step title="Resource Setup">
+    Downloads and prepares:
+    - Java Runtime Environment (if needed)
+    - Client JAR file
+    - Required libraries
+    - Game assets
+    - Native libraries
+  </Step>
+  
+  <Step title="JVM Configuration">
+    Builds JVM arguments including:
+    - Memory settings (`-Xmx`, `-Xms`)
+    - LiquidBounce API configuration
+    - Custom JVM args
+    - Classpath
+  </Step>
+  
+  <Step title="Game Launch">
+    Executes Java with game arguments and monitors the process
+  </Step>
+</Steps>
+
+## Launch Events
+
+The launcher emits events during the launch process:
+
+<AccordionGroup>
+  <Accordion title="progress-update">
+    Emitted during resource download and setup
+    
+    ```typescript
+    window.listen('progress-update', (event) => {
+      console.log('Progress:', event.payload);
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="process-output">
+    Game console output (stdout/stderr)
+    
+    ```rust
+    // From: src-tauri/src/app/gui/commands/client.rs:206
+    fn handle_stdout(window: &ShareableWindow, data: &[u8]) -> anyhow::Result<()> {
+        let data = String::from_utf8(data.to_vec())?;
+        window.lock()?.emit("process-output", data)?;
+        Ok(())
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="client-error">
+    Emitted when an error occurs during launch
+    
+    ```rust
+    shareable_window.lock().unwrap().emit("client-error", ())
+    ```
+  </Accordion>
+  
+  <Accordion title="client-exited">
+    Emitted when the game process terminates
+    
+    ```rust
+    shareable_window.lock().unwrap().emit("client-exited", ())
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Java Distribution Selection
+
+LiquidLauncher supports multiple Java distributions:
+
+```rust
+// From: src-tauri/src/minecraft/java/distribution.rs:23
+pub enum JavaDistribution {
+    Temurin,  // Eclipse Temurin (Adoptium)
+    GraalVM,  // Oracle GraalVM
+    Zulu,     // Azul Zulu
+}
+```
+
+### Distribution Comparison
+
+| Distribution | Java 8 | Java 11 | Java 17 | Java 21+ |
+|-------------|--------|---------|---------|----------|
+| **Temurin** | ✅ | ✅ | ✅ | ✅ |
+| **GraalVM** | ❌ | ❌ | ✅ | ✅ |
+| **Zulu** | ✅ | ✅ | ✅ | ✅ |
+
+<Note>
+  Temurin is recommended for most users as it supports all Java versions and has excellent compatibility.
+</Note>
+
+### Automatic Distribution Download
+
+The launcher automatically downloads the appropriate Java distribution:
+
+```rust
+// From: src-tauri/src/minecraft/java/distribution.rs:41
+impl JavaDistribution {
+    pub async fn get_url(&self, jre_version: &u32) -> Result<String> {
+        let os_arch = ARCHITECTURE.get_simple_name()?;
+        let archive_type = OS.get_archive_type()?;
+
+        Ok(match self {
+            JavaDistribution::Temurin => {
+                format!(
+                    "https://api.adoptium.net/v3/binary/latest/{}/ga/{}/{}/jre/hotspot/normal/eclipse?project=jdk",
+                    jre_version, os_name, os_arch
+                )
+            }
+            JavaDistribution::GraalVM => {
+                format!(
+                    "https://download.oracle.com/graalvm/{}/latest/graalvm-jdk-{}_{}-{}_bin.{}",
+                    jre_version, jre_version, os_name, os_arch, archive_type
+                )
+            }
+            JavaDistribution::Zulu => {
+                fetch_zulu_download_url(*jre_version).await?
+            }
+        })
+    }
+}
+```
+
+## Terminating the Game
+
+You can stop the running game programmatically:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:405
+#[tauri::command]
+pub(crate) async fn terminate(app_state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mut lck = app_state.runner_instance.lock()?;
+
+    if let Some(inst) = lck.take() {
+        info!("Sending sigterm");
+        inst.terminator.send(()).unwrap();
+    }
+    Ok(())
+}
+```
+
+<Warning>
+  Terminating the game will immediately stop the process. Make sure to save your progress before terminating.
+</Warning>
+
+## Viewing Changelogs
+
+You can fetch changelogs for specific builds:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:80
+#[tauri::command]
+pub(crate) async fn fetch_changelog(client: Client, build_id: u32) -> Result<Changelog, String> {
+    (|| async { client.fetch_changelog(build_id).await })
+        .retry(ExponentialBuilder::default())
+        .await
+        .map_err(|e| format!("unable to fetch changelog: {:?}", e))
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Client is already running error">
+    Only one game instance can run at a time. If you see this error:
+    1. Close the existing game window
+    2. Wait for the process to fully terminate
+    3. Try launching again
+  </Accordion>
+  
+  <Accordion title="Failed to fetch launch manifest">
+    This usually indicates:
+    - Network connectivity issues
+    - Invalid build ID
+    - Server downtime
+    
+    The launcher will automatically retry with exponential backoff.
+  </Accordion>
+  
+  <Accordion title="Java binary not found">
+    If the Java binary is missing:
+    1. Delete the `runtimes` folder in your data directory
+    2. Restart the launcher
+    3. The Java runtime will be re-downloaded
+  </Accordion>
+  
+  <Accordion title="Out of memory errors">
+    Increase memory allocation in Settings:
+    1. Go to Settings
+    2. Increase the Memory slider
+    3. Recommended: 4GB minimum, 8GB for better performance
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Mods Management" icon="puzzle-piece" href="/user-guide/mods-management">
+    Learn how to install and manage mods
+  </Card>
+  <Card title="Settings" icon="gear" href="/user-guide/settings">
+    Configure advanced launch options
+  </Card>
+</CardGroup>

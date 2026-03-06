@@ -1,0 +1,439 @@
+---
+title: Mods Management
+description: Installing, managing, and configuring custom mods in LiquidLauncher
+---
+
+LiquidLauncher provides comprehensive mod management capabilities, allowing you to install custom mods, manage loader mods, and configure mod states per branch and version.
+
+## Overview
+
+Mods in LiquidLauncher come from two sources:
+
+<CardGroup cols={2}>
+  <Card title="Loader Mods" icon="cloud">
+    Mods provided by the LiquidBounce API for specific versions
+  </Card>
+  <Card title="Custom Mods" icon="folder">
+    JAR files you install manually from your local system
+  </Card>
+</CardGroup>
+
+## Fetching Available Mods
+
+Request mods compatible with a specific Minecraft version and subsystem:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:91
+#[tauri::command]
+pub(crate) async fn request_mods(
+    client: Client,
+    mc_version: &str,
+    subsystem: &str,
+) -> Result<Vec<LoaderMod>, String> {
+    let mods = (|| async { client.fetch_mods(&mc_version, &subsystem).await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request mods. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request mods: {:?}", e))?;
+
+    Ok(mods)
+}
+```
+
+<ParamField path="mc_version" type="string" required>
+  The Minecraft version (e.g., "1.20.1", "1.19.4")
+</ParamField>
+
+<ParamField path="subsystem" type="string" required>
+  The mod loader subsystem (e.g., "fabric", "forge")
+</ParamField>
+
+<Note>
+  The launcher uses exponential backoff retry logic to handle temporary network failures when fetching mods.
+</Note>
+
+## Custom Mod Management
+
+Custom mods are stored per branch and Minecraft version in:
+```
+{data_dir}/custom_mods/{branch}-{mc_version}/
+```
+
+### Getting Custom Mods
+
+Retrieve all custom mods for a specific branch and version:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:108
+#[tauri::command]
+pub(crate) async fn get_custom_mods(
+    branch: &str,
+    mc_version: &str,
+) -> Result<Vec<LoaderMod>, String> {
+    let data = LAUNCHER_DIRECTORY.data_dir();
+    let mod_cache_path = data
+        .join("custom_mods")
+        .join(format!("{}-{}", branch, mc_version));
+
+    if !mod_cache_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut mods = vec![];
+    let mut mods_read = fs::read_dir(&mod_cache_path).await?;
+
+    while let Some(entry) = mods_read.next_entry().await? {
+        let file_type = entry.file_type().await?;
+        let file_name = entry.file_name().to_str().unwrap().to_string();
+
+        if file_type.is_file() && file_name.ends_with(".jar") {
+            let file_name_without_extension = file_name.replace(".jar", "");
+
+            mods.push(LoaderMod {
+                required: false,
+                enabled: true,
+                name: file_name_without_extension,
+                source: ModSource::Local { file_name },
+            });
+        }
+    }
+
+    Ok(mods)
+}
+```
+
+### Mod Structure
+
+Each custom mod is represented as a `LoaderMod`:
+
+<ParamField path="name" type="string">
+  The mod name (extracted from filename without .jar extension)
+</ParamField>
+
+<ParamField path="enabled" type="boolean" default="true">
+  Whether the mod is currently enabled
+</ParamField>
+
+<ParamField path="required" type="boolean" default="false">
+  Custom mods are never required (only API mods can be required)
+</ParamField>
+
+<ParamField path="source" type="ModSource">
+  `ModSource::Local { file_name }` for custom mods
+</ParamField>
+
+## Installing Custom Mods
+
+<Steps>
+  <Step title="Select Mod File">
+    Choose a JAR file from your local filesystem
+  </Step>
+  
+  <Step title="Install to Branch/Version">
+    The mod is copied to the appropriate directory:
+    
+    ```rust
+    // From: src-tauri/src/app/gui/commands/client.rs:154
+    #[tauri::command]
+    pub(crate) async fn install_custom_mod(
+        branch: &str,
+        mc_version: &str,
+        path: PathBuf,
+    ) -> Result<(), String> {
+        let data = LAUNCHER_DIRECTORY.data_dir();
+        let mod_cache_path = data
+            .join("custom_mods")
+            .join(format!("{}-{}", branch, mc_version));
+
+        // Create directory if it doesn't exist
+        if !mod_cache_path.exists() {
+            fs::create_dir_all(&mod_cache_path).await.unwrap();
+        }
+
+        if let Some(file_name) = path.file_name() {
+            let dest_path = mod_cache_path.join(file_name.to_str().unwrap());
+
+            fs::copy(path, dest_path)
+                .await
+                .map_err(|e| format!("unable to copy custom mod: {:?}", e))?;
+            return Ok(());
+        }
+
+        Err("unable to copy custom mod: invalid path".to_string())
+    }
+    ```
+  </Step>
+  
+  <Step title="Verification">
+    The mod is now available in your custom mods list
+  </Step>
+</Steps>
+
+### Installation Process
+
+1. **Directory Creation**: If the target directory doesn't exist, it's created automatically
+2. **File Copy**: The JAR file is copied (not moved) to preserve the original
+3. **Validation**: The file must have a valid filename to be copied
+
+<Warning>
+  Only `.jar` files are recognized as mods. Make sure your mod file has the `.jar` extension.
+</Warning>
+
+## Deleting Custom Mods
+
+Remove a custom mod from a specific branch and version:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:181
+#[tauri::command]
+pub(crate) async fn delete_custom_mod(
+    branch: &str,
+    mc_version: &str,
+    mod_name: &str,
+) -> Result<(), String> {
+    let data = LAUNCHER_DIRECTORY.data_dir();
+    let mod_cache_path = data
+        .join("custom_mods")
+        .join(format!("{}-{}", branch, mc_version));
+
+    if !mod_cache_path.exists() {
+        return Ok(());
+    }
+
+    let mod_path = mod_cache_path.join(mod_name);
+
+    if mod_path.exists() {
+        fs::remove_file(mod_path)
+            .await
+            .map_err(|e| format!("unable to delete custom mod: {:?}", e))?;
+    }
+
+    Ok(())
+}
+```
+
+<ParamField path="branch" type="string" required>
+  The branch name where the mod is installed
+</ParamField>
+
+<ParamField path="mc_version" type="string" required>
+  The Minecraft version where the mod is installed
+</ParamField>
+
+<ParamField path="mod_name" type="string" required>
+  The mod filename (including .jar extension)
+</ParamField>
+
+<Note>
+  Deleting a mod is safe and can be undone by reinstalling the mod file.
+</Note>
+
+## Mod Configuration
+
+Mod states (enabled/disabled) are stored in the launcher options:
+
+```rust
+// From: src-tauri/src/app/options.rs:88
+pub(crate) struct BranchOptions {
+    #[serde(rename = "modStates", default)]
+    pub mod_states: HashMap<String, bool>,
+    #[serde(rename = "customModStates", default)]
+    pub custom_mod_states: HashMap<String, bool>,
+}
+```
+
+### Mod State Management
+
+- **Loader Mods**: State stored in `mod_states` HashMap
+- **Custom Mods**: State stored in `custom_mod_states` HashMap
+- **Per-Branch**: Each branch maintains its own mod configuration
+
+<Accordion title="How mod states are persisted">
+  Mod states are saved in the launcher's `options.json` file:
+  
+  ```json
+  {
+    "version": {
+      "options": {
+        "nextgen-1.20.1": {
+          "modStates": {
+            "sodium": true,
+            "iris": false
+          },
+          "customModStates": {
+            "my-custom-mod.jar": true
+          }
+        }
+      }
+    }
+  }
+  ```
+</Accordion>
+
+## Mod Loading During Launch
+
+Mods are passed to the game client during launch:
+
+```rust
+// From: src-tauri/src/app/gui/commands/client.rs:260
+pub(crate) async fn run_client(
+    client: Client,
+    build_id: u32,
+    options: Options,
+    mods: Vec<LoaderMod>,  // ← Mods passed here
+    window: Window,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // ... launch preparation ...
+
+    prelauncher::launch(launch_manifest, parameters, mods, launcher_data).await
+}
+```
+
+The mods list includes:
+1. **Enabled Loader Mods**: Fetched from API and filtered by enabled state
+2. **Enabled Custom Mods**: Local JAR files that are marked as enabled
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Organizing Custom Mods">
+    - Use descriptive filenames for easy identification
+    - Keep backups of your custom mods
+    - Test mods individually before combining multiple mods
+    - Note which Minecraft version each mod is compatible with
+  </Accordion>
+  
+  <Accordion title="Mod Compatibility">
+    - Always check mod compatibility with your Minecraft version
+    - Some mods may conflict with each other
+    - Loader mods from the API are tested for compatibility
+    - Custom mods are your responsibility to verify
+  </Accordion>
+  
+  <Accordion title="Performance Considerations">
+    - More mods = longer loading times
+    - Some mods may require additional memory
+    - Disable unused mods to improve performance
+    - Monitor game performance after adding new mods
+  </Accordion>
+</AccordionGroup>
+
+## Mod Storage Locations
+
+Different types of data are stored in specific locations:
+
+| Data Type | Location |
+|-----------|----------|
+| Custom Mods | `{data_dir}/custom_mods/{branch}-{mc_version}/` |
+| Mod Cache | `{data_dir}/mod_cache/` |
+| Mod States | `{config_dir}/options.json` |
+
+<Note>
+  You can change the data directory in Settings by setting a custom data path.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Mod not appearing in list">
+    - Ensure the file has a `.jar` extension
+    - Check that the mod is in the correct branch/version directory
+    - Verify the file wasn't corrupted during copy
+    - Refresh the mods list in the launcher
+  </Accordion>
+  
+  <Accordion title="Failed to install custom mod">
+    Common causes:
+    - Invalid file path
+    - Insufficient disk space
+    - File permission issues
+    - File is locked by another process
+  </Accordion>
+  
+  <Accordion title="Game crashes with mods enabled">
+    - Disable all mods and enable them one by one
+    - Check mod compatibility with Minecraft version
+    - Look for conflicting mods
+    - Check the game logs for error messages
+  </Accordion>
+  
+  <Accordion title="Unable to delete custom mod">
+    - Ensure the game is not running
+    - Check file permissions
+    - Verify the mod filename is correct
+    - Manually delete from the file system if needed
+  </Accordion>
+</AccordionGroup>
+
+## Example: Full Mod Workflow
+
+Here's a complete example of managing mods:
+
+<Steps>
+  <Step title="Fetch API Mods">
+    ```typescript
+    const loaderMods = await invoke('request_mods', {
+      client,
+      mcVersion: '1.20.1',
+      subsystem: 'fabric'
+    });
+    ```
+  </Step>
+  
+  <Step title="Get Custom Mods">
+    ```typescript
+    const customMods = await invoke('get_custom_mods', {
+      branch: 'nextgen',
+      mcVersion: '1.20.1'
+    });
+    ```
+  </Step>
+  
+  <Step title="Install New Custom Mod">
+    ```typescript
+    await invoke('install_custom_mod', {
+      branch: 'nextgen',
+      mcVersion: '1.20.1',
+      path: '/path/to/mod.jar'
+    });
+    ```
+  </Step>
+  
+  <Step title="Configure Mod States">
+    ```typescript
+    // In your options object
+    options.version.options['nextgen-1.20.1'].customModStates['mod.jar'] = true;
+    await invoke('store_options', { options });
+    ```
+  </Step>
+  
+  <Step title="Launch with Mods">
+    ```typescript
+    const allMods = [...loaderMods, ...customMods]
+      .filter(mod => mod.enabled);
+      
+    await invoke('run_client', {
+      client,
+      buildId: 1234,
+      options,
+      mods: allMods,
+      window,
+      appState
+    });
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Launching Games" icon="rocket" href="/user-guide/launching-games">
+    Learn how mods are loaded during game launch
+  </Card>
+  <Card title="Settings" icon="gear" href="/user-guide/settings">
+    Configure data directories and other options
+  </Card>
+</CardGroup>

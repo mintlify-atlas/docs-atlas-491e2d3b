@@ -1,0 +1,325 @@
+---
+title: Multiple Accounts
+description: Support for managing multiple Minecraft accounts
+icon: users
+---
+
+LiquidLauncher supports multiple Minecraft accounts with seamless switching between them.
+
+## Account Types
+
+The launcher supports three types of accounts:
+
+<Accordion title="Microsoft Account (Premium)">
+  Full Microsoft authentication with Xbox Live integration.
+  
+  ```rust src-tauri/src/minecraft/auth.rs
+  MsaAccount {
+      /// Microsoft auth
+      msa: ExpiringValue<AccessTokenResponse>,
+      /// Xbox Live auth
+      xbl: ExpiringValue<XboxLiveAuth>,
+      /// Minecraft auth
+      mca: ExpiringValue<MinecraftAuthResponse>,
+      /// The user's Minecraft profile
+      profile: ProfileResponse,
+  }
+  ```
+  
+  **Features:**
+  - Full profile support (UUID, skins, capes)
+  - Automatic token refresh
+  - Xbox Live integration
+  - Online multiplayer support
+</Accordion>
+
+<Accordion title="Legacy Microsoft Account">
+  Compatibility mode for older Microsoft accounts.
+  
+  ```rust src-tauri/src/minecraft/auth.rs
+  LegacyMsaAccount {
+      name: String,
+      uuid: Uuid,
+      token: String,
+      ms_auth: MsAuth,
+  }
+  ```
+  
+  **Features:**
+  - Microsoft authentication
+  - Token refresh support
+  - Backward compatibility
+</Accordion>
+
+<Accordion title="Offline Account">
+  Local account for offline play and development.
+  
+  ```rust src-tauri/src/minecraft/auth.rs
+  OfflineAccount {
+      name: String,
+      id: Uuid,
+  }
+  ```
+  
+  **Features:**
+  - No internet required
+  - Generated UUID based on username
+  - Perfect for testing
+</Accordion>
+
+## Adding Accounts
+
+### Microsoft Authentication
+
+The launcher uses Microsoft's device code flow for secure authentication:
+
+<Steps>
+  <Step title="Initiate Login">
+    Call the `login_microsoft` command to start authentication
+    
+    ```rust src-tauri/src/app/gui/commands/auth.rs
+    #[tauri::command]
+    pub(crate) async fn login_microsoft(window: Window) -> Result<MinecraftAccount, String> {
+        let account = MinecraftAccount::auth_msa(|uri, code| {
+            debug!("enter code {} on {} to sign-in", code, uri);
+            let _ = window.emit("microsoft_code", code);
+        })
+        .await
+        .map_err(|e| format!("{}", e))?;
+    
+        Ok(account)
+    }
+    ```
+  </Step>
+  
+  <Step title="Display Code">
+    The launcher displays a verification code and URL to the user
+  </Step>
+  
+  <Step title="User Verification">
+    User visits the URL and enters the code to authorize the launcher
+  </Step>
+  
+  <Step title="Token Exchange">
+    Launcher receives OAuth tokens and completes authentication:
+    
+    ```rust src-tauri/src/minecraft/auth.rs
+    // Request new device code from Azure
+    let device_code = get_ms_link_code(
+        &HTTP_CLIENT, 
+        Some(AZURE_CLIENT_ID), 
+        Some(AZURE_SCOPE)
+    ).await?;
+    
+    let msa: ExpiringValue<AccessTokenResponse> = get_ms_auth_token(
+        &HTTP_CLIENT, 
+        device_code, 
+        Some(AZURE_CLIENT_ID)
+    ).await?;
+    ```
+  </Step>
+  
+  <Step title="Fetch Profile">
+    Retrieves Minecraft profile information including UUID and skin
+  </Step>
+</Steps>
+
+### Offline Authentication
+
+Offline accounts are created instantly with a deterministic UUID:
+
+```rust src-tauri/src/minecraft/auth.rs
+pub async fn auth_offline(username: String) -> Self {
+    // Generate UUID from "OfflinePlayer:$name"
+    let name_str = format!("OfflinePlayer:{}", username);
+    let bytes = name_str.as_bytes();
+    let mut md5: [u8; 16] = md5::compute(bytes).into();
+
+    md5[6] &= 0x0f; // clear version
+    md5[6] |= 0x30; // version 3
+    md5[8] &= 0x3f; // clear variant
+    md5[8] |= 0x80; // IETF variant
+
+    let uuid = Uuid::from_bytes(md5);
+
+    MinecraftAccount::OfflineAccount {
+        name: username,
+        id: uuid,
+    }
+}
+```
+
+<Note>
+The UUID generation follows Java's `UUID.nameUUIDFromBytes()` for compatibility with Minecraft servers.
+</Note>
+
+## Token Management
+
+### Automatic Refresh
+
+Account tokens are automatically refreshed when needed:
+
+```rust src-tauri/src/minecraft/auth.rs
+/// Refresh access token if necessary
+pub async fn refresh(self) -> Result<MinecraftAccount> {
+    match self {
+        MinecraftAccount::MsaAccount { msa, xbl, mca, profile, .. } => {
+            // Not necessary to refresh if the Minecraft auth token is not expired
+            if !mca.is_expired() {
+                return Ok(MinecraftAccount::MsaAccount { msa, xbl, mca, profile });
+            }
+
+            // Refresh Microsoft auth token if necessary
+            let msa = if msa.is_expired() {
+                refresh_ms_auth_token(
+                    &HTTP_CLIENT,
+                    &msa.data.refresh_token,
+                    Some(AZURE_CLIENT_ID),
+                    Some(AZURE_SCOPE),
+                )
+                .await?
+            } else {
+                msa
+            };
+
+            Ok(login_msa(msa).await?)
+        }
+        // ...
+    }
+}
+```
+
+<Accordion title="Refresh Flow">
+  1. **Check Expiration**: Verifies if tokens are still valid
+  2. **Refresh MSA**: Updates Microsoft authentication if needed
+  3. **Refresh XBL**: Updates Xbox Live authentication
+  4. **Refresh MCA**: Updates Minecraft authentication
+  5. **Update Profile**: Fetches latest profile information
+</Accordion>
+
+### Manual Refresh
+
+You can manually refresh an account:
+
+```rust src-tauri/src/app/gui/commands/auth.rs
+#[tauri::command]
+pub(crate) async fn refresh(account_data: MinecraftAccount) -> Result<MinecraftAccount, String> {
+    info!("Refreshing account...");
+    let account = account_data
+        .refresh()
+        .await
+        .map_err(|e| format!("unable to refresh: {:?}", e))?;
+    info!("Account was refreshed - username {}", account.get_username());
+    Ok(account)
+}
+```
+
+## Account Selection
+
+Accounts are stored in the launcher's options and can be selected for launch:
+
+```rust src-tauri/src/app/options.rs
+pub struct StartOptions {
+    pub minecraft_account: Option<MinecraftAccount>,
+    // ...
+}
+
+pub struct DataOptions {
+    pub current_account: Option<MinecraftAccount>,
+    // ...
+}
+```
+
+### Launch Process
+
+When launching the game, the selected account is used for authentication:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+let minecraft_account = options
+    .start_options
+    .minecraft_account
+    .ok_or("no account selected")?;
+
+let (account_name, uuid, token, user_type) = match minecraft_account {
+    MinecraftAccount::MsaAccount { mca, profile, .. } => (
+        profile.name,
+        profile.id.to_string(),
+        mca.data.access_token,
+        "msa".to_string(),
+    ),
+    MinecraftAccount::LegacyMsaAccount { name, uuid, token, .. } => (
+        name, 
+        uuid.to_string(), 
+        token, 
+        "msa".to_string()
+    ),
+    MinecraftAccount::OfflineAccount { name, id, .. } => (
+        name, 
+        id.to_string(), 
+        "-".to_string(), 
+        "legacy".to_string()
+    )
+};
+```
+
+## Azure Integration
+
+The launcher uses a custom Azure application for authentication:
+
+```rust src-tauri/src/minecraft/auth.rs
+/// The client ID of the Azure app used for authentication
+pub(crate) const AZURE_CLIENT_ID: &str = "0add8caf-2cc6-4546-b798-c3d171217dd9";
+const AZURE_SCOPE: &str = "XboxLive.signin offline_access";
+```
+
+<Note>
+**Scopes requested:**
+- `XboxLive.signin` - Xbox Live authentication
+- `offline_access` - Refresh token support
+</Note>
+
+## Security Features
+
+<CardGroup cols={2}>
+  <Card title="Token Encryption" icon="lock">
+    All tokens are stored securely and never exposed to the frontend
+  </Card>
+  <Card title="Automatic Expiration" icon="clock">
+    Tokens are checked for expiration before each use
+  </Card>
+  <Card title="Secure Refresh" icon="arrows-rotate">
+    OAuth2 refresh tokens prevent re-authentication
+  </Card>
+  <Card title="No Password Storage" icon="shield-check">
+    Authentication uses OAuth2 device flow - no passwords stored
+  </Card>
+</CardGroup>
+
+## Logout
+
+Accounts can be removed from the launcher:
+
+```rust src-tauri/src/app/gui/commands/auth.rs
+#[tauri::command]
+pub(crate) async fn logout(account_data: MinecraftAccount) -> Result<(), String> {
+    account_data
+        .logout()
+        .await
+        .map_err(|e| format!("unable to logout: {:?}", e))
+}
+```
+
+<Note>
+Logout removes the account from local storage but does not revoke OAuth tokens on Microsoft's end.
+</Note>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Version Selection" icon="code-branch" href="/features/version-selection">
+    Choose which build to launch with your account
+  </Card>
+  <Card title="Custom Mods" icon="puzzle-piece" href="/features/custom-mods">
+    Install custom mods for your game profile
+  </Card>
+</CardGroup>

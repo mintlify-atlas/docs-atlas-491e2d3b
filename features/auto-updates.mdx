@@ -1,0 +1,205 @@
+---
+title: Auto-Updates
+description: Automatic update system for the launcher and game builds
+icon: arrow-rotate-right
+---
+
+LiquidLauncher features a robust automatic update system that keeps both the launcher application and game builds up to date.
+
+## Launcher Updates
+
+The launcher uses Tauri's built-in updater plugin to automatically check for and install updates.
+
+### Configuration
+
+The updater is configured in `tauri.conf.json`:
+
+```json tauri.conf.json
+{
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1QkM5MTlDREQ4NkEzNjMKUldSam80YmRuSkc4NVNxS2MzYVZPN1I4a283RkdsS0lPTjVjRWlxQ1JhdzFZUkRtc0c1eEtqSzQK",
+      "endpoints": [
+        "https://github.com/CCBlueX/LiquidLauncher/releases/latest/download/latest.json",
+        "https://api.liquidbounce.net/api/v1/launcher/releases/{{target}}/{{current_version}}"
+      ]
+    }
+  }
+}
+```
+
+<Note>
+The updater uses `createUpdaterArtifacts: "v1Compatible"` to generate update manifests compatible with Tauri v1.
+</Note>
+
+### Update Endpoints
+
+The launcher checks for updates from two sources:
+
+<Steps>
+  <Step title="GitHub Releases">
+    Primary endpoint that fetches the latest release from GitHub
+    
+    ```
+    https://github.com/CCBlueX/LiquidLauncher/releases/latest/download/latest.json
+    ```
+  </Step>
+  
+  <Step title="LiquidBounce API">
+    Fallback endpoint that provides platform-specific updates
+    
+    ```
+    https://api.liquidbounce.net/api/v1/launcher/releases/{{target}}/{{current_version}}
+    ```
+    
+    Variables:
+    - `{{target}}` - Platform target (e.g., `windows-x86_64`, `linux-x86_64`)
+    - `{{current_version}}` - Current launcher version
+  </Step>
+</Steps>
+
+### Update Process
+
+<Accordion title="How updates are installed">
+  1. **Check for Updates**: On launch, the updater queries configured endpoints
+  2. **Version Comparison**: Compares current version with latest available
+  3. **Download**: If newer version exists, downloads update package
+  4. **Verification**: Validates signature using the public key
+  5. **Install**: Applies update and restarts the launcher
+</Accordion>
+
+## Build Updates
+
+Game builds are automatically fetched from the LiquidBounce API.
+
+### API Structure
+
+The launcher communicates with multiple API endpoints defined in `client_api.rs:33-41`:
+
+```rust src-tauri/src/app/client_api.rs
+pub const LAUNCHER_API: [&str; 3] = [
+    "https://api.liquidbounce.net",
+    "https://api.ccbluex.net",
+    // Non-secure connection requires additional confirmation
+    "http://nossl.api.liquidbounce.net",
+];
+```
+
+<Note>
+The launcher automatically falls back to alternative endpoints if the primary is unavailable.
+</Note>
+
+### Fetching Builds
+
+Builds are fetched using the client API:
+
+```rust src-tauri/src/app/client_api.rs
+/// Request all builds of branch
+pub async fn builds_by_branch(&self, branch: &str, release: bool) -> Result<Vec<Build>> {
+    self.request_from_endpoint(API_V1, &if release {
+        format!("version/builds/{}/release", branch)
+    } else {
+        format!("version/builds/{}", branch)
+    })
+    .await
+}
+```
+
+### Build Information
+
+Each build contains comprehensive metadata:
+
+<CodeGroup>
+```rust Build Structure
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Build {
+    pub build_id: u32,
+    pub commit_id: String,
+    pub branch: String,
+    pub subsystem: String,
+    pub lb_version: String,
+    pub mc_version: String,
+    pub release: bool,
+    pub date: DateTime<Utc>,
+    pub message: String,
+    pub url: String,
+    pub jre_distribution: JavaDistribution,
+    pub jre_version: u32,
+    pub subsystem_specific_data: SubsystemSpecificData,
+}
+```
+
+```rust Subsystem Data
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SubsystemSpecificData {
+    pub fabric_api_version: String,
+    pub fabric_loader_version: String,
+    pub kotlin_version: String,
+    pub kotlin_mod_version: String,
+}
+```
+</CodeGroup>
+
+### Launch Manifest
+
+Before launching, the launcher fetches a complete launch manifest:
+
+```rust src-tauri/src/app/client_api.rs
+/// Request launch manifest of specific build
+pub async fn fetch_launch_manifest(&self, build_id: u32) -> Result<LaunchManifest> {
+    self.request_from_endpoint(API_V1, &format!("version/launch/{}", build_id))
+        .await
+}
+```
+
+The manifest includes:
+- Build information
+- Required mods and dependencies
+- Repository URLs for mod downloads
+- Subsystem configuration (Fabric/Forge)
+
+## Retry Logic
+
+All API requests use exponential backoff for reliability:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+let builds = (|| async { client.builds_by_branch(branch, release).await })
+    .retry(ExponentialBuilder::default())
+    .notify(|err, dur| {
+        warn!("Failed to request builds. Retrying in {:?}. Error: {}", dur, err);
+    })
+    .await
+    .map_err(|e| format!("unable to request builds: {:?}", e))?;
+```
+
+<Note>
+This ensures the launcher remains functional even with temporary network issues.
+</Note>
+
+## Security
+
+### Signature Verification
+
+Launcher updates are cryptographically signed and verified using the public key in the configuration.
+
+### HTTPS Enforcement
+
+The API endpoints prioritize HTTPS connections. HTTP fallback requires user confirmation:
+
+```rust src-tauri/src/app/client_api.rs
+let is_secure = endpoint.starts_with("https://");
+if !is_secure {
+    warn!("Falling back to Non-SSL '{}' endpoint.", endpoint);
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Version Selection" icon="code-branch" href="/features/version-selection">
+    Learn about selecting branches and builds
+  </Card>
+  <Card title="Java Management" icon="coffee" href="/features/java-management">
+    Automatic Java runtime updates
+  </Card>
+</CardGroup>

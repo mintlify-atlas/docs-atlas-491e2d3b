@@ -1,0 +1,123 @@
+---
+title: "Tauri Commands Overview"
+description: "Complete reference for all Tauri commands available in LiquidLauncher"
+---
+
+## Overview
+
+LiquidLauncher exposes its backend functionality through Tauri commands that can be invoked from the frontend. These commands are organized into four main categories:
+
+- **Authentication Commands** - Handle Minecraft and LiquidBounce account authentication
+- **Client API Commands** - Interact with the LiquidBounce API for builds, mods, and game launching
+- **Data Management Commands** - Store and retrieve launcher configuration
+- **System Commands** - Access system information and perform checks
+
+## Command Categories
+
+### Authentication
+
+Commands for managing Minecraft and LiquidBounce accounts.
+
+<CardGroup cols={2}>
+  <Card title="Microsoft Login" icon="microsoft" href="/development/api/authentication#login_microsoft">
+    Authenticate with a Microsoft account
+  </Card>
+  <Card title="Offline Login" icon="user" href="/development/api/authentication#login_offline">
+    Create an offline Minecraft account
+  </Card>
+  <Card title="Client Authentication" icon="key" href="/development/api/authentication#client_account_authenticate">
+    Authenticate with LiquidBounce account
+  </Card>
+  <Card title="Refresh Token" icon="rotate" href="/development/api/authentication#refresh">
+    Refresh authentication tokens
+  </Card>
+</CardGroup>
+
+### Client API
+
+Commands for interacting with the LiquidBounce API and managing the game client.
+
+<CardGroup cols={2}>
+  <Card title="Launch Client" icon="rocket" href="/development/api/client-api#run_client">
+    Start the Minecraft client with LiquidBounce
+  </Card>
+  <Card title="Request Branches" icon="code-branch" href="/development/api/client-api#request_branches">
+    Get available LiquidBounce branches
+  </Card>
+  <Card title="Request Builds" icon="box" href="/development/api/client-api#request_builds">
+    Get builds for a specific branch
+  </Card>
+  <Card title="Manage Mods" icon="puzzle-piece" href="/development/api/client-api#mod-management">
+    Install and manage custom mods
+  </Card>
+</CardGroup>
+
+### Data Management
+
+Commands for managing launcher configuration and data.
+
+<Card title="Options Management" icon="gear" href="/development/api/client-api#data-commands">
+  Get and store launcher options
+</Card>
+
+### System
+
+Commands for system information and checks.
+
+<Card title="System Information" icon="computer" href="/development/api/client-api#system-commands">
+  Get launcher version and system memory
+</Card>
+
+## Using Commands
+
+All commands are invoked using Tauri's `invoke` function from the frontend:
+
+```javascript
+import { invoke } from '@tauri-apps/api/core';
+
+// Example: Get launcher options
+const options = await invoke('get_options');
+
+// Example: Login with Microsoft
+const account = await invoke('login_microsoft');
+
+// Example: Request branches with parameters
+const branches = await invoke('request_branches', {
+  client: clientInstance
+});
+```
+
+## Error Handling
+
+All commands that can fail return `Result<T, String>` on the Rust side, which translates to a Promise that can reject with a string error message:
+
+```javascript
+try {
+  const account = await invoke('login_microsoft');
+  console.log('Login successful:', account);
+} catch (error) {
+  console.error('Login failed:', error);
+  // error is a string describing what went wrong
+}
+```
+
+## Type Definitions
+
+The Rust types used in commands are serialized to JSON when crossing the Tauri bridge:
+
+- **Enums** are serialized with a `type` field (e.g., `MinecraftAccount`)
+- **Structs** become JavaScript objects with camelCase field names
+- **Options** become `null` when `None`, or the contained value when `Some`
+- **Results** throw exceptions on `Err`, or return the value on `Ok`
+
+## Source Code Location
+
+All Tauri commands are defined in:
+- `src-tauri/src/app/gui/commands/auth.rs` - Authentication commands
+- `src-tauri/src/app/gui/commands/client.rs` - Client API commands
+- `src-tauri/src/app/gui/commands/data.rs` - Data management commands
+- `src-tauri/src/app/gui/commands/system.rs` - System commands
+
+See the detailed pages for each category:
+- [Authentication Commands](/development/api/authentication)
+- [Client API Commands](/development/api/client-api)

@@ -1,0 +1,243 @@
+---
+title: Account Management
+description: Managing Microsoft and offline accounts in LiquidLauncher
+---
+
+LiquidLauncher supports both Microsoft accounts and offline accounts for launching Minecraft. This guide covers how to authenticate, manage, and refresh your accounts.
+
+## Account Types
+
+LiquidLauncher supports three account types:
+
+<CardGroup cols={2}>
+  <Card title="Microsoft Account" icon="microsoft">
+    Full access to multiplayer servers with official authentication
+  </Card>
+  <Card title="Offline Account" icon="user">
+    Local-only account for offline gameplay
+  </Card>
+</CardGroup>
+
+## Microsoft Account Login
+
+Microsoft accounts use the official Microsoft Authentication flow to provide secure access to Minecraft servers.
+
+<Steps>
+  <Step title="Initiate Login">
+    Click the login button in the launcher to start the Microsoft authentication process.
+    
+    ```rust
+    // From: src-tauri/src/app/gui/commands/auth.rs:36
+    #[tauri::command]
+    pub(crate) async fn login_microsoft(window: Window) -> Result<MinecraftAccount, String> {
+        let account = MinecraftAccount::auth_msa(|uri, code| {
+            debug!("enter code {} on {} to sign-in", code, uri);
+            let _ = window.emit("microsoft_code", code);
+        })
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        Ok(account)
+    }
+    ```
+  </Step>
+  
+  <Step title="Enter Device Code">
+    A device code will be displayed. Visit the Microsoft authentication URL and enter the code shown.
+    
+    <Note>
+      The launcher will emit a `microsoft_code` event with the code you need to enter.
+    </Note>
+  </Step>
+  
+  <Step title="Complete Authentication">
+    After entering the code and signing in with your Microsoft account, the launcher will automatically receive your credentials.
+  </Step>
+</Steps>
+
+### Account Structure
+
+When authenticated, your Microsoft account contains:
+
+<ParamField path="profile.name" type="string">
+  Your Minecraft username
+</ParamField>
+
+<ParamField path="profile.id" type="UUID">
+  Your unique Minecraft profile UUID
+</ParamField>
+
+<ParamField path="mca.data.access_token" type="string">
+  Microsoft authentication access token
+</ParamField>
+
+<ParamField path="user_type" type="string" default="msa">
+  Account type identifier for Microsoft accounts
+</ParamField>
+
+## Offline Account Login
+
+Offline accounts are useful for testing or when you don't have internet access. They don't require authentication but can only be used for offline gameplay.
+
+```rust
+// From: src-tauri/src/app/gui/commands/auth.rs:30
+#[tauri::command]
+pub(crate) async fn login_offline(username: &str) -> Result<MinecraftAccount, String> {
+    let account = MinecraftAccount::auth_offline(username.to_string()).await;
+    Ok(account)
+}
+```
+
+<Steps>
+  <Step title="Select Offline Mode">
+    Choose the offline account option in the launcher.
+  </Step>
+  
+  <Step title="Enter Username">
+    Enter your desired username (no authentication required).
+  </Step>
+  
+  <Step title="Start Playing">
+    Your offline account is ready to use immediately.
+  </Step>
+</Steps>
+
+<Warning>
+  Offline accounts generate a random UUID and use a dummy token (`"-"`). They have user type `"legacy"` and cannot connect to online servers.
+</Warning>
+
+## Client Account Authentication
+
+For premium features, you can also authenticate with a LiquidBounce client account:
+
+```rust
+// From: src-tauri/src/app/gui/commands/auth.rs:48
+#[tauri::command]
+pub(crate) async fn client_account_authenticate(client: Client) -> Result<ClientAccount, String> {
+    let mut account = ClientAccountAuthenticator::start_auth(|uri| {
+        let _ = tauri_plugin_opener::open_url(uri, None::<&str>);
+    })
+        .await
+        .map_err(|e| format!("{}", e))?;
+
+    account
+        .update_info(&client)
+        .await
+        .map_err(|e| format!("unable to fetch user information: {:?}", e))?;
+
+    Ok(account)
+}
+```
+
+This will open your browser to complete the OAuth flow.
+
+## Refreshing Accounts
+
+Microsoft accounts need to be refreshed periodically when their tokens expire:
+
+```rust
+// From: src-tauri/src/app/gui/commands/auth.rs:78
+#[tauri::command]
+pub(crate) async fn refresh(account_data: MinecraftAccount) -> Result<MinecraftAccount, String> {
+    info!("Refreshing account...");
+    let account = account_data
+        .refresh()
+        .await
+        .map_err(|e| format!("unable to refresh: {:?}", e))?;
+    info!(
+        "Account was refreshed - username {}",
+        account.get_username()
+    );
+    Ok(account)
+}
+```
+
+<Note>
+  The launcher automatically refreshes your account when needed. Manual refresh is only necessary if you encounter authentication errors.
+</Note>
+
+## Updating Client Accounts
+
+Client accounts can be updated to renew tokens and fetch latest user information:
+
+```rust
+// From: src-tauri/src/app/gui/commands/auth.rs:64
+#[tauri::command]
+pub(crate) async fn client_account_update(
+    client: Client, 
+    account: ClientAccount
+) -> Result<ClientAccount, String> {
+    let mut account = account
+        .renew()
+        .await
+        .map_err(|e| format!("unable to update access token: {:?}", e))?;
+
+    account
+        .update_info(&client)
+        .await
+        .map_err(|e| format!("unable to fetch user information: {:?}", e))?;
+    Ok(account)
+}
+```
+
+## Logging Out
+
+To remove an account from the launcher:
+
+```rust
+// From: src-tauri/src/app/gui/commands/auth.rs:92
+#[tauri::command]
+pub(crate) async fn logout(account_data: MinecraftAccount) -> Result<(), String> {
+    account_data
+        .logout()
+        .await
+        .map_err(|e| format!("unable to logout: {:?}", e))
+}
+```
+
+<Accordion title="What happens when I logout?">
+  Logging out will:
+  - Remove the account from your saved accounts
+  - Revoke authentication tokens
+  - Clear cached credentials
+  
+  You'll need to authenticate again to use the account.
+</Accordion>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Microsoft authentication fails">
+    - Ensure you have a valid Microsoft account with Minecraft
+    - Check your internet connection
+    - Try refreshing your account
+    - Clear your browser cookies and try again
+  </Accordion>
+  
+  <Accordion title="Account refresh errors">
+    If refresh fails, you may need to:
+    1. Logout of the account
+    2. Login again with Microsoft authentication
+    3. Complete the full authentication flow
+  </Accordion>
+  
+  <Accordion title="Can't connect to servers with offline account">
+    Offline accounts can only be used for:
+    - Single-player gameplay
+    - LAN games
+    - Servers with authentication disabled
+    
+    Use a Microsoft account for online multiplayer.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Launching Games" icon="rocket" href="/user-guide/launching-games">
+    Learn how to select versions and launch games
+  </Card>
+  <Card title="Settings" icon="gear" href="/user-guide/settings">
+    Configure launcher settings and preferences
+  </Card>
+</CardGroup>

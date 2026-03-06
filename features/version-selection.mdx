@@ -1,0 +1,389 @@
+---
+title: Version Selection
+description: Branch and build selection system
+icon: code-branch
+---
+
+LiquidLauncher provides a flexible system for selecting Minecraft versions through branches and builds.
+
+## Branch System
+
+Builds are organized into branches, similar to Git branches:
+
+### Fetching Branches
+
+```rust src-tauri/src/app/client_api.rs
+/// Request all available branches
+pub async fn branches(&self) -> Result<Branches> {
+    self.request_from_endpoint(API_V1, "version/branches").await
+}
+```
+
+The API returns:
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Serialize, Deserialize)]
+pub struct Branches {
+    #[serde(rename = "defaultBranch")]
+    pub default_branch: String,
+    pub branches: Vec<String>,
+}
+```
+
+<Accordion title="Example response">
+```json
+{
+  "defaultBranch": "nextgen",
+  "branches": ["nextgen", "legacy", "experimental"]
+}
+```
+</Accordion>
+
+### Branch Command
+
+The frontend requests branches with retry logic:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn request_branches(client: Client) -> Result<Branches, String> {
+    let branches = (|| async { client.branches().await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request branches. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request branches: {:?}", e))?;
+
+    Ok(branches)
+}
+```
+
+<Note>
+Exponential backoff ensures the launcher remains functional even with temporary network issues.
+</Note>
+
+## Build Selection
+
+Once a branch is selected, you can fetch available builds.
+
+### Fetching Builds
+
+<Steps>
+  <Step title="Select Branch">
+    Choose a branch from the available branches
+  </Step>
+  
+  <Step title="Choose Release Filter">
+    Decide whether to show only release builds or all builds
+  </Step>
+  
+  <Step title="Request Builds">
+    Fetch builds using the API:
+    
+    ```rust src-tauri/src/app/client_api.rs
+    pub async fn builds_by_branch(
+        &self, 
+        branch: &str, 
+        release: bool
+    ) -> Result<Vec<Build>> {
+        self.request_from_endpoint(API_V1, &if release {
+            format!("version/builds/{}/release", branch)
+        } else {
+            format!("version/builds/{}", branch)
+        })
+        .await
+    }
+    ```
+  </Step>
+</Steps>
+
+### Build Structure
+
+Each build contains comprehensive metadata:
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Build {
+    #[serde(rename(serialize = "buildId"))]
+    pub build_id: u32,
+    #[serde(rename(serialize = "commitId"))]
+    pub commit_id: String,
+    pub branch: String,
+    pub subsystem: String,
+    #[serde(rename(serialize = "lbVersion"))]
+    pub lb_version: String,
+    #[serde(rename(serialize = "mcVersion"))]
+    pub mc_version: String,
+    pub release: bool,
+    pub date: DateTime<Utc>,
+    pub message: String,
+    pub url: String,
+    #[serde(rename(serialize = "jreDistribution"), default)]
+    pub jre_distribution: JavaDistribution,
+    #[serde(rename(serialize = "jreVersion"))]
+    pub jre_version: u32,
+    #[serde(flatten)]
+    pub subsystem_specific_data: SubsystemSpecificData,
+}
+```
+
+<Accordion title="Build metadata explained">
+  - **build_id**: Unique identifier for the build
+  - **commit_id**: Git commit hash
+  - **branch**: Branch name (e.g., "nextgen")
+  - **subsystem**: Mod loader type ("fabric" or "forge")
+  - **lb_version**: LiquidBounce version
+  - **mc_version**: Minecraft version
+  - **release**: Whether this is a stable release
+  - **date**: Build timestamp
+  - **message**: Commit message or release notes
+  - **url**: Repository URL
+  - **jre_distribution**: Required Java distribution
+  - **jre_version**: Required Java version
+  - **subsystem_specific_data**: Loader-specific metadata
+</Accordion>
+
+## Subsystem Data
+
+Builds include subsystem-specific information:
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SubsystemSpecificData {
+    #[serde(rename(serialize = "fabricApiVersion"))]
+    pub fabric_api_version: String,
+    #[serde(rename(serialize = "fabricLoaderVersion"))]
+    pub fabric_loader_version: String,
+    #[serde(rename(serialize = "kotlinVersion"))]
+    pub kotlin_version: String,
+    #[serde(rename(serialize = "kotlinModVersion"))]
+    pub kotlin_mod_version: String,
+}
+```
+
+<Note>
+This ensures compatibility with the correct Fabric API, loader, and Kotlin versions.
+</Note>
+
+## Requesting Builds Command
+
+The frontend command includes retry logic and error handling:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn request_builds(
+    client: Client, 
+    branch: &str, 
+    release: bool
+) -> Result<Vec<Build>, String> {
+    let builds = (|| async { client.builds_by_branch(branch, release).await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request builds. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request builds: {:?}", e))?;
+
+    Ok(builds)
+}
+```
+
+## Changelog
+
+Each build has an associated changelog:
+
+### Fetching Changelog
+
+```rust src-tauri/src/app/client_api.rs
+/// Request changelog of specified build
+pub async fn fetch_changelog(&self, build_id: u32) -> Result<Changelog> {
+    self.request_from_endpoint(API_V1, &format!("version/changelog/{}", build_id))
+        .await
+}
+```
+
+### Changelog Structure
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Serialize, Deserialize)]
+pub struct Changelog {
+    pub build: Build,
+    pub changelog: String,
+}
+```
+
+### Changelog Command
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn fetch_changelog(
+    client: Client, 
+    build_id: u32
+) -> Result<Changelog, String> {
+    (|| async { client.fetch_changelog(build_id).await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to fetch changelog. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to fetch changelog: {:?}", e))
+}
+```
+
+<Note>
+Changelogs are fetched on-demand to reduce initial loading time.
+</Note>
+
+## Launch Manifest
+
+Before launching, the launcher fetches a complete launch manifest:
+
+```rust src-tauri/src/app/client_api.rs
+/// Request launch manifest of specific build
+pub async fn fetch_launch_manifest(&self, build_id: u32) -> Result<LaunchManifest> {
+    self.request_from_endpoint(API_V1, &format!("version/launch/{}", build_id))
+        .await
+}
+```
+
+### Manifest Structure
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Deserialize)]
+pub struct LaunchManifest {
+    pub build: Build,
+    pub subsystem: LoaderSubsystem,
+    pub mods: Vec<LoaderMod>,
+    pub repositories: BTreeMap<String, String>,
+}
+```
+
+<Accordion title="Manifest components">
+  - **build**: Complete build information
+  - **subsystem**: Fabric or Forge configuration
+  - **mods**: Required and optional mods
+  - **repositories**: Maven repositories for mod downloads
+</Accordion>
+
+### Subsystem Configuration
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Deserialize)]
+#[serde(tag = "name")]
+pub enum LoaderSubsystem {
+    #[serde(rename = "fabric")]
+    Fabric {
+        manifest: String,
+        mod_directory: String,
+    },
+    #[serde(rename = "forge")]
+    Forge {
+        manifest: String,
+        mod_directory: String,
+    },
+}
+```
+
+## API Endpoints
+
+All version-related requests go through the API client:
+
+```rust src-tauri/src/app/client_api.rs
+pub const API_V1: &str = "api/v1";
+
+pub async fn request_from_endpoint<T: DeserializeOwned>(
+    &self, 
+    api_version: &str, 
+    endpoint: &str
+) -> Result<T> {
+    Ok(HTTP_CLIENT
+        .get(format!("{}/{}/{}", self.url, api_version, endpoint))
+        .header("X-Session-Token", &self.session_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<T>()
+        .await?)
+}
+```
+
+<Note>
+All requests include a session token for authentication and rate limiting.
+</Note>
+
+## Usage Flow
+
+<Steps>
+  <Step title="Fetch Branches">
+    Get list of available branches and the default branch
+  </Step>
+  
+  <Step title="Select Branch">
+    User chooses a branch (or uses default)
+  </Step>
+  
+  <Step title="Fetch Builds">
+    Load all builds for the selected branch
+  </Step>
+  
+  <Step title="Filter Builds">
+    Optionally filter to show only release builds
+  </Step>
+  
+  <Step title="View Changelog">
+    User can view changelog for any build
+  </Step>
+  
+  <Step title="Select Build">
+    User chooses a specific build to launch
+  </Step>
+  
+  <Step title="Fetch Launch Manifest">
+    Launcher retrieves complete launch configuration
+  </Step>
+  
+  <Step title="Launch">
+    Game is launched with the selected build
+  </Step>
+</Steps>
+
+## Blog Posts
+
+The API also provides blog posts for news and updates:
+
+```rust src-tauri/src/app/client_api.rs
+/// Request all blog posts
+pub async fn blog_posts(&self, page: u32) -> Result<PaginatedResponse<BlogPost>> {
+    self.request_from_endpoint(API_V3, &format!("blog?page={}", page)).await
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BlogPost {
+    #[serde(rename(serialize = "postId"))]
+    pub post_id: u32,
+    #[serde(rename(serialize = "postUid"))]
+    pub post_uid: String,
+    pub author: String,
+    pub title: String,
+    pub description: String,
+    pub date: NaiveDateTime,
+    #[serde(rename(serialize = "bannerText"))]
+    pub banner_text: String,
+    #[serde(rename(serialize = "bannerImageUrl"))]
+    pub banner_image_url: String,
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Auto-Updates" icon="arrow-rotate-right" href="/features/auto-updates">
+    Builds are automatically updated from the API
+  </Card>
+  <Card title="Java Management" icon="mug-hot" href="/features/java-management">
+    Each build specifies required Java version
+  </Card>
+  <Card title="Custom Mods" icon="puzzle-piece" href="/features/custom-mods">
+    Install additional mods for any build
+  </Card>
+</CardGroup>

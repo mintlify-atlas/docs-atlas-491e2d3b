@@ -1,0 +1,326 @@
+---
+title: "Authentication Commands"
+description: "Tauri commands for managing Minecraft and LiquidBounce account authentication"
+---
+
+## Overview
+
+Authentication commands handle both Minecraft account authentication (Microsoft and Offline) and LiquidBounce account authentication. These commands are defined in `src-tauri/src/app/gui/commands/auth.rs`.
+
+## Minecraft Authentication
+
+### login_offline
+
+Create an offline Minecraft account with a username. This generates a UUID using the same algorithm as Minecraft servers.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn login_offline(username: &str) -> Result<MinecraftAccount, String>
+```
+
+```javascript Usage
+import { invoke } from '@tauri-apps/api/core';
+
+const account = await invoke('login_offline', {
+  username: 'Player123'
+});
+```
+
+```typescript TypeScript
+interface OfflineAccount {
+  type: 'Offline';
+  name: string;
+  id: string; // UUID generated from "OfflinePlayer:username"
+}
+
+const account: OfflineAccount = await invoke('login_offline', {
+  username: 'Player123'
+});
+```
+</CodeGroup>
+
+<ParamField path="username" type="string" required>
+  The Minecraft username for the offline account. Can be any string.
+</ParamField>
+
+<ResponseField name="MinecraftAccount" type="object">
+  An offline Minecraft account object
+  <Expandable title="properties">
+    <ResponseField name="type" type="string">
+      Always `"Offline"` for offline accounts
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The username provided
+    </ResponseField>
+    <ResponseField name="id" type="string">
+      UUID generated from `OfflinePlayer:<username>` using MD5 (version 3 UUID)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Info>
+  The UUID generation algorithm matches Minecraft's offline mode:
+  ```rust
+  // Generates UUID from "OfflinePlayer:$name"
+  let name_str = format!("OfflinePlayer:{}", username);
+  let bytes = name_str.as_bytes();
+  let uuid = UUID::v3_from_md5(bytes);
+  ```
+</Info>
+
+---
+
+### login_microsoft
+
+Authenticate with a Microsoft account to create a premium Minecraft account. This initiates the Microsoft device code flow.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn login_microsoft(window: Window) -> Result<MinecraftAccount, String>
+```
+
+```javascript Usage
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+// Listen for the device code
+const unlisten = await listen('microsoft_code', (event) => {
+  console.log('Enter code:', event.payload);
+  console.log('Visit: https://microsoft.com/devicelogin');
+});
+
+try {
+  const account = await invoke('login_microsoft');
+  console.log('Login successful:', account);
+} finally {
+  unlisten();
+}
+```
+
+```typescript TypeScript
+interface MsaAccount {
+  type: 'Premium';
+  name: string;
+  id: string; // UUID
+  // Internal tokens (msa, xbl, mca) are also included
+}
+
+const account: MsaAccount = await invoke('login_microsoft');
+```
+</CodeGroup>
+
+<ParamField path="window" type="Window" required>
+  The Tauri window instance (automatically passed by Tauri)
+</ParamField>
+
+<ResponseField name="MinecraftAccount" type="object">
+  A premium Microsoft-authenticated Minecraft account
+  <Expandable title="properties">
+    <ResponseField name="type" type="string">
+      Always `"Premium"` for Microsoft accounts
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The Minecraft profile username
+    </ResponseField>
+    <ResponseField name="id" type="string">
+      The Minecraft profile UUID
+    </ResponseField>
+    <ResponseField name="msa" type="object">
+      Microsoft authentication token (with expiration)
+    </ResponseField>
+    <ResponseField name="xbl" type="object">
+      Xbox Live authentication token (with expiration)
+    </ResponseField>
+    <ResponseField name="mca" type="object">
+      Minecraft authentication token (with expiration)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+  This command will block until the user completes authentication. Listen for the `microsoft_code` event to display the device code to the user.
+</Warning>
+
+**Events:**
+- `microsoft_code` - Emitted with the device code string that the user needs to enter at microsoft.com/devicelogin
+
+---
+
+### refresh
+
+Refresh the authentication tokens for a Microsoft account. This checks if tokens are expired and renews them if necessary.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn refresh(account_data: MinecraftAccount) -> Result<MinecraftAccount, String>
+```
+
+```javascript Usage
+const refreshedAccount = await invoke('refresh', {
+  accountData: currentAccount
+});
+```
+</CodeGroup>
+
+<ParamField path="account_data" type="MinecraftAccount" required>
+  The Minecraft account to refresh. Can be any type, but only Microsoft accounts are actually refreshed.
+</ParamField>
+
+<ResponseField name="MinecraftAccount" type="object">
+  The refreshed account with updated tokens
+</ResponseField>
+
+<Info>
+  - For **Premium** accounts: Refreshes Microsoft, Xbox Live, and Minecraft tokens if expired
+  - For **LegacyMsa** accounts: Refreshes and upgrades to Premium format
+  - For **Offline** accounts: Returns the account unchanged
+</Info>
+
+---
+
+### logout
+
+Logout from a Minecraft account. Currently performs cleanup operations.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn logout(account_data: MinecraftAccount) -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('logout', {
+  accountData: currentAccount
+});
+```
+</CodeGroup>
+
+<ParamField path="account_data" type="MinecraftAccount" required>
+  The Minecraft account to logout from
+</ParamField>
+
+<ResponseField name="result" type="void">
+  Returns nothing on success
+</ResponseField>
+
+## LiquidBounce Authentication
+
+### client_account_authenticate
+
+Authenticate with a LiquidBounce account using OAuth2 flow.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn client_account_authenticate(client: Client) -> Result<ClientAccount, String>
+```
+
+```javascript Usage
+const clientAccount = await invoke('client_account_authenticate', {
+  client: clientInstance
+});
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ResponseField name="ClientAccount" type="object">
+  The authenticated LiquidBounce account with user information
+  <Expandable title="properties">
+    <ResponseField name="accessToken" type="string">
+      OAuth2 access token
+    </ResponseField>
+    <ResponseField name="refreshToken" type="string">
+      OAuth2 refresh token
+    </ResponseField>
+    <ResponseField name="userInfo" type="object" default="null">
+      User information from the API
+      <Expandable title="properties">
+        <ResponseField name="nickname" type="string">
+          User's display name
+        </ResponseField>
+        <ResponseField name="userId" type="string">
+          Unique user identifier
+        </ResponseField>
+        <ResponseField name="premium" type="boolean">
+          Whether the user has premium status
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Info>
+  This command automatically opens the OAuth2 authorization URL in the user's default browser.
+</Info>
+
+---
+
+### client_account_update
+
+Update and refresh a LiquidBounce account's access token and user information.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn client_account_update(
+    client: Client,
+    account: ClientAccount
+) -> Result<ClientAccount, String>
+```
+
+```javascript Usage
+const updatedAccount = await invoke('client_account_update', {
+  client: clientInstance,
+  account: currentClientAccount
+});
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="account" type="ClientAccount" required>
+  The current LiquidBounce account to update
+</ParamField>
+
+<ResponseField name="ClientAccount" type="object">
+  The updated account with fresh tokens and user information
+</ResponseField>
+
+<Note>
+  This command performs two operations:
+  1. Renews the OAuth2 access token using the refresh token
+  2. Fetches updated user information from the API
+</Note>
+
+## Error Handling
+
+All authentication commands return `Result<T, String>`, which means they can fail with descriptive error messages:
+
+```javascript
+try {
+  const account = await invoke('login_microsoft');
+} catch (error) {
+  // error is a string like:
+  // "unable to refresh: <reason>"
+  // "unable to fetch user information: <reason>"
+  // "unable to logout: <reason>"
+  console.error('Authentication failed:', error);
+}
+```
+
+## Source Code
+
+Location: `src-tauri/src/app/gui/commands/auth.rs:1`
+
+Key dependencies:
+- `azalea_auth` - Microsoft authentication library
+- `crate::auth::ClientAccount` - LiquidBounce account types
+- `crate::minecraft::auth::MinecraftAccount` - Minecraft account types

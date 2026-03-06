@@ -1,0 +1,615 @@
+---
+title: Settings
+description: Configuring launcher settings, options, and preferences
+---
+
+LiquidLauncher provides extensive configuration options to customize your experience. Settings are stored in `options.json` and can be managed through Tauri commands.
+
+## Settings Structure
+
+Settings are organized into four main categories:
+
+```rust
+// From: src-tauri/src/app/options.rs:30
+pub(crate) struct Options {
+    #[serde(rename = "start")]
+    pub start_options: StartOptions,
+    #[serde(rename = "version")]
+    pub version_options: VersionOptions,
+    #[serde(rename = "launcher")]
+    pub launcher_options: LauncherOptions,
+    #[serde(rename = "premium")]
+    pub premium_options: PremiumOptions,
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Start Options" icon="play">
+    Account, memory, Java, and JVM settings
+  </Card>
+  <Card title="Version Options" icon="code-branch">
+    Branch, build, and mod state configuration
+  </Card>
+  <Card title="Launcher Options" icon="window-maximize">
+    UI behavior and download settings
+  </Card>
+  <Card title="Premium Options" icon="crown">
+    Premium account and features
+  </Card>
+</CardGroup>
+
+## Start Options
+
+Configure how games are launched:
+
+```rust
+// From: src-tauri/src/app/options.rs:42
+pub(crate) struct StartOptions {
+    #[serde(rename = "account")]
+    pub minecraft_account: Option<MinecraftAccount>,
+    #[serde(rename = "customDataPath", default)]
+    pub custom_data_path: String,
+    #[serde(rename = "javaDistribution", default)]
+    pub java_distribution: DistributionSelection,
+    #[serde(rename = "jvmArgs", default)]
+    pub jvm_args: Option<Vec<String>>,
+    #[serde(rename = "memory", default = "default_memory")]
+    pub memory: u64,
+}
+```
+
+### Account Configuration
+
+<ParamField path="minecraft_account" type="MinecraftAccount | null">
+  The currently selected Minecraft account (Microsoft or Offline)
+</ParamField>
+
+<Accordion title="Account Structure">
+  Accounts can be:
+  - `MsaAccount`: Microsoft authenticated account
+  - `LegacyMsaAccount`: Legacy Microsoft account
+  - `OfflineAccount`: Offline/local account
+  
+  See [Account Management](/user-guide/account-management) for details.
+</Accordion>
+
+### Memory Allocation
+
+<ParamField path="memory" type="u64" default="4096">
+  Memory allocation in megabytes (MB)
+</ParamField>
+
+<Note>
+  Default memory allocation is 4096 MB (4 GB). Increase this if you experience lag or crashes.
+</Note>
+
+#### Recommended Memory Settings
+
+| Use Case | Recommended RAM |
+|----------|----------------|
+| Vanilla/Light Mods | 2-4 GB |
+| Moderate Mods | 4-6 GB |
+| Heavy Modpacks | 6-8 GB |
+| Ultra Modded | 8-12 GB+ |
+
+### Java Distribution
+
+<ParamField path="java_distribution" type="DistributionSelection">
+  Java runtime selection strategy
+</ParamField>
+
+```rust
+// From: src-tauri/src/minecraft/java/distribution.rs:6
+pub enum DistributionSelection {
+    Automatic(String),  // Let launcher choose
+    Custom(String),     // Custom Java path
+    Manual(JavaDistribution),  // Specific distribution
+}
+```
+
+#### Available Distributions
+
+<Tabs>
+  <Tab title="Temurin (Default)">
+    Eclipse Temurin from Adoptium
+    
+    - ✅ Supports all Java versions (8, 11, 17, 21+)
+    - ✅ Excellent compatibility
+    - ✅ Open source
+    - ✅ Regular updates
+    
+    **Download URL Pattern:**
+    ```
+    https://api.adoptium.net/v3/binary/latest/{version}/ga/{os}/{arch}/jre/hotspot/normal/eclipse
+    ```
+  </Tab>
+  
+  <Tab title="GraalVM">
+    Oracle GraalVM for performance
+    
+    - ⚠️ Supports Java 17+ only
+    - ✅ Better performance
+    - ✅ Advanced optimizations
+    - ⚠️ Larger download size
+    
+    **Download URL Pattern:**
+    ```
+    https://download.oracle.com/graalvm/{version}/latest/graalvm-jdk-{version}_{os}-{arch}_bin.{ext}
+    ```
+  </Tab>
+  
+  <Tab title="Zulu">
+    Azul Zulu community builds
+    
+    - ✅ Supports all Java versions
+    - ✅ Community edition
+    - ✅ Good compatibility
+    - ✅ TCK certified
+    
+    **Fetched from Azul API:**
+    ```rust
+    https://api.azul.com/metadata/v1/zulu/packages/
+      ?java_version={version}
+      &os={os}
+      &arch={arch}
+      &java_package_type=jre
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  GraalVM only supports Java 17 and newer. If you need Java 8 or 11, use Temurin or Zulu.
+</Warning>
+
+### Custom Data Path
+
+<ParamField path="custom_data_path" type="string" default="">
+  Custom directory for game data. Empty string uses default location.
+</ParamField>
+
+When set, game data is stored in:
+```
+{custom_data_path}/
+├── assets/
+├── gameDir/
+├── libraries/
+├── mod_cache/
+├── custom_mods/
+├── natives/
+├── runtimes/
+└── versions/
+```
+
+<Note>
+  You can get the default data folder path using the `default_data_folder_path` command.
+</Note>
+
+### JVM Arguments
+
+<ParamField path="jvm_args" type="Vec<String> | null">
+  Custom JVM arguments passed to Java
+</ParamField>
+
+#### Common JVM Arguments
+
+```java
+// Garbage Collection
+-XX:+UseG1GC                    // Use G1 garbage collector
+-XX:+ParallelRefProcEnabled      // Enable parallel reference processing
+-XX:MaxGCPauseMillis=200         // Target max GC pause time
+
+// Performance
+-XX:+UnlockExperimentalVMOptions // Unlock experimental options
+-XX:+DisableExplicitGC           // Disable explicit GC calls
+-XX:+AlwaysPreTouch              // Pre-touch memory pages
+
+// Memory
+-Xms4G                           // Initial heap size
+-Xmx8G                           // Maximum heap size
+
+// Debugging
+-XX:+PrintGCDetails              // Print GC details
+-Xlog:gc*:file=gc.log            // Log GC to file
+```
+
+<Warning>
+  Invalid JVM arguments can prevent the game from launching. Test carefully!
+</Warning>
+
+## Version Options
+
+Manage branch and build selection:
+
+```rust
+// From: src-tauri/src/app/options.rs:56
+pub(crate) struct VersionOptions {
+    #[serde(rename = "branchName")]
+    pub branch_name: Option<String>,
+    #[serde(rename = "buildId", default)]
+    pub build_id: i32,
+    #[serde(rename = "options", default)]
+    pub options: HashMap<String, BranchOptions>,
+}
+```
+
+<ParamField path="branch_name" type="string | null">
+  Selected branch. `null` uses recommended branch.
+</ParamField>
+
+<ParamField path="build_id" type="i32" default="-1">
+  Selected build ID. `-1` uses latest build.
+</ParamField>
+
+<ParamField path="options" type="HashMap<String, BranchOptions>">
+  Per-branch configuration including mod states
+</ParamField>
+
+### Branch Options
+
+```rust
+// From: src-tauri/src/app/options.rs:88
+pub(crate) struct BranchOptions {
+    #[serde(rename = "modStates", default)]
+    pub mod_states: HashMap<String, bool>,
+    #[serde(rename = "customModStates", default)]
+    pub custom_mod_states: HashMap<String, bool>,
+}
+```
+
+Each branch maintains separate mod state configurations:
+- **mod_states**: Loader mods from API
+- **custom_mod_states**: Custom JAR mods
+
+## Launcher Options
+
+Configure launcher behavior:
+
+```rust
+// From: src-tauri/src/app/options.rs:66
+pub(crate) struct LauncherOptions {
+    #[serde(rename = "firstRun", default)]
+    pub first_run: bool,
+    #[serde(rename = "showNightlyBuilds")]
+    pub show_nightly_builds: bool,
+    #[serde(rename = "concurrentDownloads")]
+    pub concurrent_downloads: u32,
+    #[serde(rename = "keepLauncherOpen")]
+    pub keep_launcher_open: bool,
+    #[serde(rename = "sessionToken", default = "random_token")]
+    pub session_token: String,
+}
+```
+
+### UI and Behavior Settings
+
+<ParamField path="first_run" type="boolean" default="true">
+  Whether this is the first time running the launcher
+</ParamField>
+
+<ParamField path="show_nightly_builds" type="boolean" default="false">
+  Show nightly/development builds in addition to releases
+</ParamField>
+
+<ParamField path="keep_launcher_open" type="boolean" default="false">
+  Keep launcher window open after game starts
+</ParamField>
+
+<Note>
+  When `keep_launcher_open` is false, the launcher window hides automatically and the process exits when the game closes.
+</Note>
+
+### Download Settings
+
+<ParamField path="concurrent_downloads" type="u32" default="10">
+  Number of simultaneous downloads for assets and libraries
+</ParamField>
+
+#### Recommended Concurrent Downloads
+
+| Connection Speed | Recommended Value |
+|-----------------|-------------------|
+| Slow (&lt;10 Mbps) | 5-8 |
+| Medium (10-50 Mbps) | 10-15 |
+| Fast (50-100 Mbps) | 15-20 |
+| Very Fast (&gt;100 Mbps) | 20-30 |
+
+<Warning>
+  Setting this too high may cause connection timeouts or rate limiting.
+</Warning>
+
+### Session Token
+
+<ParamField path="session_token" type="string">
+  Unique session identifier (auto-generated 16 character alphanumeric)
+</ParamField>
+
+```rust
+// From: src-tauri/src/app/options.rs:206
+fn random_token() -> String {
+    Alphanumeric.sample_string(&mut rand::rng(), 16)
+}
+```
+
+## Premium Options
+
+Configure premium features:
+
+```rust
+// From: src-tauri/src/app/options.rs:80
+pub(crate) struct PremiumOptions {
+    #[serde(rename = "account")]
+    pub account: Option<ClientAccount>,
+    #[serde(rename = "skipAdvertisement", default)]
+    pub skip_advertisement: bool,
+}
+```
+
+<ParamField path="account" type="ClientAccount | null">
+  LiquidBounce client account for premium features
+</ParamField>
+
+<ParamField path="skip_advertisement" type="boolean" default="false">
+  Skip advertisements (requires premium account)
+</ParamField>
+
+<Note>
+  Advertisement skipping only works if you have a premium client account.
+</Note>
+
+## Managing Settings
+
+### Loading Options
+
+```rust
+// From: src-tauri/src/app/gui/commands/data.rs:26
+#[tauri::command]
+pub(crate) async fn get_options() -> Result<Options, String> {
+    let config_dir = LAUNCHER_DIRECTORY.config_dir();
+    let options = Options::load(config_dir).await.unwrap_or_default();
+    Ok(options)
+}
+```
+
+Options are loaded from `{config_dir}/options.json`. If the file doesn't exist or is invalid, default options are used.
+
+### Storing Options
+
+```rust
+// From: src-tauri/src/app/gui/commands/data.rs:33
+#[tauri::command]
+pub(crate) async fn store_options(options: Options) -> Result<(), String> {
+    let config_dir = LAUNCHER_DIRECTORY.config_dir();
+    options
+        .store(config_dir)
+        .await
+        .map_err(|e| format!("unable to store config data: {:?}", e))?;
+    Ok(())
+}
+```
+
+Call this command after modifying options to persist changes.
+
+### Example: Updating Settings
+
+```typescript
+// Load current options
+const options = await invoke('get_options');
+
+// Modify settings
+options.start.memory = 8192;  // 8 GB
+options.launcher.concurrent_downloads = 15;
+options.launcher.keep_launcher_open = true;
+
+// Save changes
+await invoke('store_options', { options });
+```
+
+## System Information
+
+### Getting System Memory
+
+Check available system memory:
+
+```rust
+// From: src-tauri/src/app/gui/commands/system.rs:52
+#[tauri::command]
+pub(crate) fn sys_memory() -> u64 {
+    utils::sys_memory() / (1024 * 1024)
+}
+```
+
+Returns total system memory in megabytes.
+
+<Note>
+  Use this to determine maximum safe memory allocation for the game.
+</Note>
+
+### Getting Launcher Version
+
+```rust
+// From: src-tauri/src/app/gui/commands/system.rs:24
+#[tauri::command]
+pub(crate) async fn get_launcher_version() -> Result<String, String> {
+    Ok(LAUNCHER_VERSION.to_string())
+}
+```
+
+## Data Management
+
+### Clearing Data
+
+Remove downloaded game files to free space:
+
+```rust
+// From: src-tauri/src/app/gui/commands/data.rs:43
+#[tauri::command]
+pub(crate) async fn clear_data(options: Options) -> Result<(), String> {
+    let data_directory = if !options.start_options.custom_data_path.is_empty() {
+        Some(options.start_options.custom_data_path)
+    } else {
+        None
+    }
+        .map(|x| x.into())
+        .unwrap_or_else(|| LAUNCHER_DIRECTORY.data_dir().to_path_buf());
+
+    [
+        "assets",
+        "gameDir",
+        "libraries",
+        "mod_cache",
+        "natives",
+        "runtimes",
+        "versions",
+    ]
+        .iter()
+        .map(|dir| data_directory.join(dir))
+        .filter(|dir| dir.exists())
+        .map(std::fs::remove_dir_all)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(())
+}
+```
+
+This removes:
+- **assets**: Game assets (sounds, textures, etc.)
+- **gameDir**: World saves and game data
+- **libraries**: Downloaded libraries
+- **mod_cache**: Cached mods
+- **natives**: Native libraries
+- **runtimes**: Java runtimes
+- **versions**: Version manifests and JARs
+
+<Warning>
+  Clearing data will delete your world saves and require re-downloading all game files. Back up important data first!
+</Warning>
+
+### Getting Default Data Folder
+
+```rust
+// From: src-tauri/src/app/gui/commands/data.rs:71
+#[tauri::command]
+pub(crate) async fn default_data_folder_path() -> Result<String, String> {
+    let data_directory = LAUNCHER_DIRECTORY.data_dir().to_str();
+
+    match data_directory {
+        None => Err("unable to get data folder path".to_string()),
+        Some(path) => Ok(path.to_string()),
+    }
+}
+```
+
+## Legacy Options Support
+
+The launcher supports migrating from legacy option formats:
+
+```rust
+// From: src-tauri/src/app/options.rs:96
+impl Options {
+    pub async fn load(app_data: &Path) -> Result<Self> {
+        let file_content = fs::read(app_data.join("options.json")).await?;
+
+        // Try modern format first
+        if let Ok(options) = serde_json::from_slice::<Self>(&file_content) {
+            return Ok(options);
+        }
+
+        // Fall back to legacy format
+        if let Ok(legacy) = serde_json::from_slice::<LegacyOptions>(&file_content) {
+            return Ok(Self::from_legacy(legacy));
+        }
+
+        Ok(serde_json::from_slice::<Self>(&file_content)?)
+    }
+}
+```
+
+<Accordion title="Legacy Options Migration">
+  When loading legacy options, the launcher automatically:
+  - Maps `customDataPath` to `custom_data_path`
+  - Converts `memoryPercentage` to fixed `memory` value (defaults to 4GB)
+  - Migrates `keepLauncherOpen` to new structure
+  - Preserves branch options and mod states
+  - Generates new `session_token`
+  
+  Legacy options are immediately saved in the new format.
+</Accordion>
+
+## Configuration Files
+
+### File Locations
+
+| File | Location | Purpose |
+|------|----------|----------|
+| options.json | `{config_dir}/` | All launcher settings |
+| World saves | `{data_dir}/gameDir/{branch}/` | Game worlds |
+| Custom mods | `{data_dir}/custom_mods/` | Installed mod JARs |
+
+### Backup Recommendations
+
+<Steps>
+  <Step title="Backup Settings">
+    ```bash
+    # Copy options.json
+    cp {config_dir}/options.json ~/options-backup.json
+    ```
+  </Step>
+  
+  <Step title="Backup Game Data">
+    ```bash
+    # Backup worlds
+    tar -czf worlds-backup.tar.gz {data_dir}/gameDir/
+    ```
+  </Step>
+  
+  <Step title="Backup Custom Mods">
+    ```bash
+    # Backup mods
+    tar -czf mods-backup.tar.gz {data_dir}/custom_mods/
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Settings not saving">
+    - Ensure you call `store_options` after modifications
+    - Check file permissions on config directory
+    - Verify disk space availability
+    - Check for JSON syntax errors
+  </Accordion>
+  
+  <Accordion title="Settings reset to defaults">
+    This happens when:
+    - options.json is corrupted
+    - JSON parsing fails
+    - File doesn't exist
+    
+    Restore from backup or reconfigure manually.
+  </Accordion>
+  
+  <Accordion title="Custom data path not working">
+    - Ensure the path exists and is writable
+    - Use absolute paths, not relative
+    - Check for special characters in path
+    - Verify the path is not read-only
+  </Accordion>
+  
+  <Accordion title="Memory allocation errors">
+    - Don't allocate more than 80% of system RAM
+    - Ensure you have sufficient free memory
+    - Close other applications
+    - Check system memory with `sys_memory` command
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Account Management" icon="user" href="/user-guide/account-management">
+    Configure your Minecraft accounts
+  </Card>
+  <Card title="Launching Games" icon="rocket" href="/user-guide/launching-games">
+    See how settings affect game launching
+  </Card>
+</CardGroup>

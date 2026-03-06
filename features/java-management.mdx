@@ -1,0 +1,400 @@
+---
+title: Java Management
+description: Automatic Java runtime download and management
+icon: mug-hot
+---
+
+LiquidLauncher automatically downloads and manages Java runtimes, ensuring the correct version is always available.
+
+## Supported Distributions
+
+The launcher supports three major Java distributions:
+
+<CardGroup cols={3}>
+  <Card title="Eclipse Temurin" icon="eclipse">
+    **Default distribution**
+    
+    - Supports all LTS versions (8, 11, 17, 21)
+    - AdoptOpenJDK successor
+    - Excellent compatibility
+  </Card>
+  
+  <Card title="GraalVM" icon="rocket">
+    **Performance focused**
+    
+    - Java 17+ only
+    - Advanced optimizations
+    - Native image support
+  </Card>
+  
+  <Card title="Azul Zulu" icon="cloud">
+    **Enterprise ready**
+    
+    - All LTS versions
+    - Commercial support available
+    - Wide platform support
+  </Card>
+</CardGroup>
+
+### Distribution Selection
+
+```rust src-tauri/src/minecraft/java/distribution.rs
+#[derive(Deserialize, Serialize, Clone)]
+pub enum JavaDistribution {
+    #[serde(rename = "temurin")]
+    Temurin,
+    #[serde(rename = "graalvm")]
+    GraalVM,
+    #[serde(rename = "zulu")]
+    Zulu,
+}
+
+impl Default for JavaDistribution {
+    fn default() -> Self {
+        // Temurin supports any version of java
+        JavaDistribution::Temurin
+    }
+}
+```
+
+<Note>
+The default distribution (Temurin) is automatically selected and supports all Java versions.
+</Note>
+
+## Automatic Download
+
+Java runtimes are downloaded automatically when launching a build that requires them.
+
+### Download Process
+
+<Steps>
+  <Step title="Determine Required Version">
+    Each build specifies its required Java version:
+    
+    ```rust src-tauri/src/app/client_api.rs
+    pub struct Build {
+        pub jre_distribution: JavaDistribution,
+        pub jre_version: u32,
+        // ...
+    }
+    ```
+  </Step>
+  
+  <Step title="Check If Installed">
+    The launcher checks if the required runtime is already installed
+    
+    ```rust src-tauri/src/minecraft/java/jre_downloader.rs
+    let runtime_path = runtimes_folder.join(
+        format!("{}_{}", jre_distribution.get_name(), jre_version)
+    );
+    ```
+  </Step>
+  
+  <Step title="Download Runtime">
+    If not present, downloads from the distribution's CDN:
+    
+    ```rust src-tauri/src/minecraft/java/jre_downloader.rs
+    pub async fn jre_download<F>(
+        runtimes_folder: &Path,
+        jre_distribution: &JavaDistribution,
+        jre_version: &u32,
+        on_progress: F,
+    ) -> Result<PathBuf>
+    where
+        F: Fn(u64, u64),
+    {
+        let url = jre_distribution.get_url(jre_version).await?;
+        let retrieved_bytes = download_file(&url, on_progress).await?;
+        // ...
+    }
+    ```
+  </Step>
+  
+  <Step title="Extract Archive">
+    Extracts the downloaded archive (ZIP on Windows, TAR.GZ on Linux/macOS):
+    
+    ```rust src-tauri/src/minecraft/java/jre_downloader.rs
+    match OS {
+        OperatingSystem::WINDOWS => zip_extract(cursor, runtime_path.as_path()).await?,
+        OperatingSystem::LINUX | OperatingSystem::OSX => {
+            tar_gz_extract(cursor, runtime_path.as_path()).await?
+        }
+        _ => bail!("Unsupported OS"),
+    }
+    ```
+  </Step>
+  
+  <Step title="Locate Binary">
+    Finds and verifies the Java executable
+  </Step>
+</Steps>
+
+## Download URLs
+
+Each distribution has its own download URL format:
+
+<CodeGroup>
+```rust Eclipse Temurin
+JavaDistribution::Temurin => {
+    let os_name = OS.get_adoptium_name()?;
+    format!(
+        "https://api.adoptium.net/v3/binary/latest/{}/ga/{}/{}/jre/hotspot/normal/eclipse?project=jdk",
+        jre_version, os_name, os_arch
+    )
+}
+```
+
+```rust GraalVM
+JavaDistribution::GraalVM => {
+    let os_name = OS.get_graal_name()?;
+    
+    if jre_version > &17 {
+        format!(
+            "https://download.oracle.com/graalvm/{}/latest/graalvm-jdk-{}_{}-{}_bin.{}",
+            jre_version, jre_version, os_name, os_arch, archive_type
+        )
+    } else if jre_version == &17 {
+        // Use archive link for 17.0.12
+        format!(
+            "https://download.oracle.com/graalvm/17/archive/graalvm-jdk-17.0.12_{}-{}_bin.{}",
+            os_name, os_arch, archive_type
+        )
+    } else {
+        bail!("GraalVM only supports Java 17+")
+    }
+}
+```
+
+```rust Azul Zulu
+JavaDistribution::Zulu => {
+    fetch_zulu_download_url(*jre_version).await?
+}
+
+async fn fetch_zulu_download_url(jre_version: u32) -> Result<String> {
+    let request_url = format!(
+        "https://api.azul.com/metadata/v1/zulu/packages/?java_version={}&os={}&arch={}&java_package_type=jre&availability_types=CA&release_status=ga&javafx_bundled=false&latest=true&page_size=1",
+        jre_version, os_param, arch_param
+    );
+    
+    let packages: Vec<AzulPackage> = HTTP_CLIENT
+        .get(&request_url)
+        .send()
+        .await?
+        .json()
+        .await?;
+    
+    packages.into_iter()
+        .find(|pkg| pkg.latest.unwrap_or(true))
+        .map(|pkg| pkg.download_url)
+        .ok_or_else(|| anyhow!("Failed to determine latest Zulu runtime"))
+}
+```
+</CodeGroup>
+
+## Java Binary Location
+
+The launcher automatically locates the Java binary based on the operating system:
+
+```rust src-tauri/src/minecraft/java/jre_downloader.rs
+pub async fn find_java_binary(
+    runtimes_folder: &Path,
+    jre_distribution: &JavaDistribution,
+    jre_version: &u32,
+) -> Result<PathBuf> {
+    let runtime_path = runtimes_folder.join(
+        format!("{}_{}", jre_distribution.get_name(), jre_version)
+    );
+
+    let mut files = fs::read_dir(&runtime_path).await?;
+
+    if let Some(jre_folder) = files.next_entry().await? {
+        let folder_path = jre_folder.path();
+
+        let java_binary = match OS {
+            OperatingSystem::WINDOWS => folder_path.join("bin").join("javaw.exe"),
+            OperatingSystem::OSX => folder_path
+                .join("Contents")
+                .join("Home")
+                .join("bin")
+                .join("java"),
+            _ => folder_path.join("bin").join("java"),
+        };
+
+        if java_binary.exists() {
+            return Ok(java_binary.absolutize()?.to_path_buf());
+        }
+    }
+
+    Err(anyhow::anyhow!("Failed to find JRE"))
+}
+```
+
+<Accordion title="Platform-specific paths">
+  - **Windows**: `bin/javaw.exe` (windowed executable, no console)
+  - **macOS**: `Contents/Home/bin/java` (app bundle structure)
+  - **Linux**: `bin/java` (standard Unix layout)
+</Accordion>
+
+## Permissions Management
+
+On Unix systems, the launcher ensures the Java binary has execution permissions:
+
+```rust src-tauri/src/minecraft/java/jre_downloader.rs
+#[cfg(unix)]
+{
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = fs::metadata(&java_binary).await?;
+
+    if !metadata.permissions().mode() & 0o111 != 0 {
+        // try to change permissions
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(0o111);
+        fs::set_permissions(&java_binary, permissions).await?;
+    }
+}
+```
+
+<Note>
+This ensures downloaded Java runtimes are immediately executable without manual permission changes.
+</Note>
+
+## Runtime Execution
+
+The `JavaRuntime` wrapper handles process execution:
+
+```rust src-tauri/src/minecraft/java/runtime.rs
+pub struct JavaRuntime(PathBuf);
+
+impl JavaRuntime {
+    pub async fn execute(&self, arguments: Vec<String>, game_dir: &Path) -> Result<Child> {
+        if !self.0.exists() {
+            bail!("Java runtime not found at: {}", self.0.display());
+        }
+
+        debug!("Executing Java runtime: {}", self.0.display());
+
+        let mut command = Command::new(&self.0);
+        command.current_dir(game_dir);
+        command.args(arguments);
+
+        command.stderr(Stdio::piped()).stdout(Stdio::piped());
+
+        let child = command.spawn()?;
+        Ok(child)
+    }
+}
+```
+
+### IO Handling
+
+The launcher captures and processes stdout/stderr:
+
+```rust src-tauri/src/minecraft/java/runtime.rs
+pub async fn handle_io<D: Send + Sync>(
+    &self,
+    running_task: &mut Child,
+    on_stdout: fn(&D, &[u8]) -> Result<()>,
+    on_stderr: fn(&D, &[u8]) -> Result<()>,
+    terminator: Receiver<()>,
+    data: &D,
+) -> Result<()> {
+    let mut stdout = running_task.stdout.take().unwrap();
+    let mut stderr = running_task.stderr.take().unwrap();
+
+    loop {
+        tokio::select! {
+            read_len = stdout.read(&mut stdout_buf) => {
+                let _ = on_stdout(&data, &stdout_buf[..read_len?]);
+            },
+            read_len = stderr.read(&mut stderr_buf) => {
+                let _ = on_stderr(&data, &stderr_buf[..read_len?]);
+            },
+            _ = &mut terminator => {
+                running_task.kill().await?;
+                break;
+            },
+            exit_status = running_task.wait() => {
+                let code = exit_status?.code().unwrap_or(7900);
+                if code != 0 && code != -1073740791 {
+                    bail!("Process exited with non-zero exit code: {}.", code);
+                }
+                break;
+            },
+        }
+    }
+    Ok(())
+}
+```
+
+## Version Support
+
+Each distribution has different version support:
+
+```rust src-tauri/src/minecraft/java/distribution.rs
+pub fn supports_version(&self, version: u32) -> bool {
+    match self {
+        JavaDistribution::Temurin => true, // Supports 8, 11, 17, 21
+        JavaDistribution::GraalVM => version >= 17, // Only supports 17+
+        JavaDistribution::Zulu => true, // Community builds for all LTS versions
+    }
+}
+```
+
+<Note>
+If a build requires Java 8, GraalVM will automatically fall back to Temurin.
+</Note>
+
+## Custom Java Path
+
+Advanced users can specify a custom Java installation:
+
+```rust src-tauri/src/app/options.rs
+pub struct StartOptions {
+    pub java_distribution: DistributionSelection,
+    // ...
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(tag = "type", content = "value")]
+pub enum DistributionSelection {
+    #[serde(rename = "automatic")]
+    Automatic(String),
+    #[serde(rename = "custom")]
+    Custom(String),
+    #[serde(rename = "manual")]
+    Manual(JavaDistribution),
+}
+```
+
+<Accordion title="Selection modes">
+  - **Automatic**: Launcher automatically selects the best distribution
+  - **Manual**: User chooses a specific distribution (Temurin, GraalVM, Zulu)
+  - **Custom**: User provides path to existing Java installation
+</Accordion>
+
+## Storage
+
+Java runtimes are stored in the launcher's data directory:
+
+```
+~/.liquidlauncher/runtimes/
+├── temurin_8/
+├── temurin_17/
+├── temurin_21/
+├── graalvm_17/
+└── zulu_21/
+```
+
+Each runtime is isolated by distribution and version to prevent conflicts.
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Version Selection" icon="code-branch" href="/features/version-selection">
+    Each build specifies its required Java version
+  </Card>
+  <Card title="Auto-Updates" icon="arrow-rotate-right" href="/features/auto-updates">
+    Java versions are updated with build updates
+  </Card>
+</CardGroup>

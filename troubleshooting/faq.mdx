@@ -1,0 +1,417 @@
+---
+title: Frequently Asked Questions
+description: Answers to common questions about LiquidLauncher
+---
+
+Find quick answers to the most frequently asked questions about LiquidLauncher.
+
+## General Questions
+
+<AccordionGroup>
+  <Accordion title="What is LiquidLauncher?">
+    LiquidLauncher is a custom Minecraft launcher designed specifically for the LiquidBounce client. It provides:
+    - Easy installation and updates for LiquidBounce
+    - Multiple branch support (stable, nightly, etc.)
+    - Automatic Java runtime management
+    - Mod management and custom mod support
+    - Microsoft and offline authentication
+    - Premium features for LiquidBounce accounts
+  </Accordion>
+
+  <Accordion title="What Minecraft versions does LiquidLauncher support?">
+    LiquidLauncher supports multiple Minecraft versions depending on the LiquidBounce build:
+    - Check the available builds in the launcher
+    - Each build specifies its Minecraft version
+    - Both Fabric and Forge mod loaders are supported
+    
+    The launcher automatically downloads the correct version profile and dependencies for your selected build.
+  </Accordion>
+
+  <Accordion title="Is LiquidLauncher safe to use?">
+    Yes, LiquidLauncher is open-source software developed by CCBlueX:
+    - Source code is available on [GitHub](https://github.com/CCBlueX/LiquidLauncher)
+    - Licensed under GPL-3.0
+    - Community-reviewed and maintained
+    - No telemetry or data collection beyond authentication
+    
+    <Warning>
+      Always download LiquidLauncher from official sources only. Unofficial versions may contain malware.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Do I need to buy Minecraft to use LiquidLauncher?">
+    Yes, for online play with Microsoft authentication, you need a legitimate Minecraft account. However:
+    - Offline mode is available for local testing without authentication
+    - Offline accounts only work on servers with `online-mode=false`
+    - Premium features require both a Minecraft account and a LiquidBounce premium account
+  </Accordion>
+</AccordionGroup>
+
+## Installation & Setup
+
+<AccordionGroup>
+  <Accordion title="How do I install LiquidLauncher?">
+    Installation steps:
+    1. Download the latest release from the official GitHub repository or website
+    2. Choose the appropriate version for your operating system (Windows, macOS, Linux)
+    3. Install or extract the launcher
+    4. Run the launcher for the first time
+    5. The launcher will automatically create necessary directories
+    
+    For detailed instructions, see the [Quick Start Guide](/quickstart).
+  </Accordion>
+
+  <Accordion title="Where does LiquidLauncher store its files?">
+    LiquidLauncher uses the following directories:
+
+    **Linux:**
+    - Data: `~/.local/share/liquidlauncher/`
+    - Config: `~/.config/liquidlauncher/`
+    - Logs: `~/.local/share/liquidlauncher/logs/`
+
+    **macOS:**
+    - Data: `~/Library/Application Support/net.CCBlueX.LiquidLauncher/`
+    - Config: `~/Library/Application Support/net.CCBlueX.LiquidLauncher/`
+    - Logs: `~/Library/Application Support/net.CCBlueX.LiquidLauncher/logs/`
+
+    **Windows:**
+    - Data: `%APPDATA%\liquidlauncher\`
+    - Config: `%APPDATA%\liquidlauncher\`
+    - Logs: `%APPDATA%\liquidlauncher\logs\`
+
+    Game files are stored in `gameDir/[branch]/` within the data directory.
+  </Accordion>
+
+  <Accordion title="Can I change the game directory location?">
+    Yes! You can specify a custom data path in the launcher settings:
+    1. Open launcher settings
+    2. Navigate to the "Custom Data Path" option
+    3. Enter your preferred directory path
+    4. Restart the launcher
+    
+    <Note>
+      Ensure the custom path has appropriate write permissions and sufficient disk space.
+    </Note>
+  </Accordion>
+
+  <Accordion title="How do I uninstall LiquidLauncher?">
+    To completely remove LiquidLauncher:
+    1. Uninstall the launcher application using your OS's standard method
+    2. Manually delete the data directories (see locations above)
+    3. Remove any custom game directories you created
+    
+    Your Minecraft and LiquidBounce accounts are not affected by uninstalling.
+  </Accordion>
+</AccordionGroup>
+
+## Authentication & Accounts
+
+<AccordionGroup>
+  <Accordion title="How does Microsoft authentication work?">
+    The launcher uses Microsoft's OAuth device flow:
+    1. Click "Login with Microsoft" in the launcher
+    2. You'll receive a device code
+    3. Visit the provided URL (usually microsoft.com/link)
+    4. Enter the device code
+    5. Authorize LiquidLauncher in your browser
+    6. The launcher automatically completes authentication
+    
+    **Azure Client ID:** `0add8caf-2cc6-4546-b798-c3d171217dd9`
+    
+    <Note>
+      Authentication tokens are automatically refreshed. Manual re-authentication is only needed if refresh fails.
+    </Note>
+  </Accordion>
+
+  <Accordion title="What's the difference between Minecraft and LiquidBounce accounts?">
+    There are two types of accounts in LiquidLauncher:
+    
+    **Minecraft Account (Required for online play):**
+    - Microsoft/Mojang account
+    - Used for game authentication
+    - Validates Minecraft ownership
+    - Required to join online servers
+    
+    **LiquidBounce Account (Optional, for premium features):**
+    - Separate account on liquidbounce.net
+    - Provides premium features like:
+      - Skip download advertisements
+      - Direct mod downloads
+      - Additional customization options
+    - Not required for basic launcher functionality
+  </Accordion>
+
+  <Accordion title="Can I use multiple accounts?">
+    Yes! You can:
+    - Switch between multiple Microsoft/Minecraft accounts
+    - Use different accounts for different game sessions
+    - Add both premium and offline accounts
+    
+    Simply log out and log in with a different account when needed.
+  </Accordion>
+
+  <Accordion title="What happens to my offline account when I log in with Microsoft?">
+    Offline and Microsoft accounts are stored separately:
+    - You can switch between account types
+    - Logging in with one doesn't delete the other
+    - Each account maintains its own settings
+    
+    However, only one account can be active at a time for launching.
+  </Accordion>
+
+  <Accordion title="My authentication tokens expired - what should I do?">
+    The launcher automatically refreshes expired tokens. If automatic refresh fails:
+    1. Log out from the launcher
+    2. Log back in to obtain fresh tokens
+    3. If issues persist, revoke and re-authorize the app in your Microsoft account settings
+    
+    See [Authentication Errors](/troubleshooting/common-issues#authentication-errors) for more details.
+  </Accordion>
+</AccordionGroup>
+
+## Java & Performance
+
+<AccordionGroup>
+  <Accordion title="Which Java version should I use?">
+    The required Java version depends on your Minecraft version:
+    - **Java 8**: Minecraft 1.16.5 and earlier
+    - **Java 17**: Minecraft 1.17 - 1.20
+    - **Java 21+**: Minecraft 1.21 and newer
+    
+    LiquidLauncher can automatically download the correct Java version. Supported distributions:
+    - Oracle GraalVM (recommended for performance)
+    - Azul Zulu
+    - Custom Java installations
+  </Accordion>
+
+  <Accordion title="How much RAM should I allocate?">
+    Recommended memory allocation:
+    - **Vanilla/LiquidBounce only**: 2-4 GB
+    - **With additional mods**: 4-6 GB
+    - **Heavy mod packs**: 6-8 GB
+    - **Shaders/high render distance**: 8+ GB
+    
+    <Warning>
+      Allocating too much RAM can actually decrease performance. Leave enough memory for your operating system and other applications.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Can I add custom JVM arguments?">
+    Yes! In the launcher settings, you can specify custom JVM arguments for optimization:
+    
+    **Recommended arguments:**
+    ```
+    -XX:+UseG1GC
+    -XX:+UnlockExperimentalVMOptions
+    -XX:G1NewSizePercent=20
+    -XX:G1ReservePercent=20
+    -XX:MaxGCPauseMillis=50
+    -XX:G1HeapRegionSize=32M
+    ```
+    
+    These can improve garbage collection and reduce lag spikes.
+  </Accordion>
+
+  <Accordion title="The launcher is using too much disk space - what can I delete?">
+    Safe to delete:
+    - **Mod cache** (`mod_cache/`): Downloaded mods will be re-downloaded when needed
+    - **Old logs** (`logs/`): Logs older than 7 days are auto-deleted
+    - **Unused game versions**: Branches you no longer play
+    
+    Do not delete:
+    - **Active game files**: Files in currently used `gameDir/[branch]/` directories
+    - **Configuration files**: Settings and account data
+  </Accordion>
+</AccordionGroup>
+
+## Mods & Customization
+
+<AccordionGroup>
+  <Accordion title="How do I add custom mods?">
+    To install custom mods:
+    1. Open the launcher
+    2. Select your game branch and version
+    3. Navigate to the mods section
+    4. Click "Add Custom Mod"
+    5. Select your .jar file
+    6. The mod will be copied to the appropriate directory
+    
+    Custom mods are stored in `custom_mods/[branch]-[version]/`.
+  </Accordion>
+
+  <Accordion title="What's the difference between required and optional mods?">
+    **Required Mods:**
+    - Essential for LiquidBounce functionality
+    - Always downloaded and loaded
+    - Cannot be disabled
+    
+    **Optional Mods:**
+    - Enhance features but not required
+    - Can be enabled/disabled in launcher
+    - Only downloaded when enabled
+  </Accordion>
+
+  <Accordion title="Why do some mods require opening a download page?">
+    Some mods use "skip ad" links for monetization:
+    - Without premium account: Opens download page in browser
+    - With premium account: Direct download automatically
+    - After completing the page, download proceeds
+    
+    This supports mod developers while providing convenience for premium users.
+  </Accordion>
+
+  <Accordion title="Can I use mods from CurseForge or Modrinth?">
+    Yes! Download the mod .jar files and add them as custom mods:
+    1. Download compatible mod versions
+    2. Verify they match your Minecraft version and mod loader (Fabric/Forge)
+    3. Add them through the custom mods feature
+    
+    <Warning>
+      Ensure mod compatibility with LiquidBounce. Some mods may conflict.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="How do I update mods?">
+    **Recommended mods** (from LiquidBounce):
+    - Automatically updated when new builds are released
+    - Cleared and re-downloaded each launch
+    
+    **Custom mods**:
+    - Must be manually updated
+    - Delete old version and add new version through custom mods
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The launcher won't start - what should I do?">
+    Try these steps:
+    1. Ensure you have the correct version for your OS
+    2. Check if another instance is already running
+    3. Verify you have required dependencies installed
+    4. Try running as administrator (Windows) or with elevated permissions
+    5. Check antivirus/firewall settings
+    6. Review system logs for error messages
+  </Accordion>
+
+  <Accordion title="Downloads keep failing - how do I fix this?">
+    Common solutions:
+    1. Check your internet connection
+    2. Try using a VPN (e.g., Cloudflare Warp)
+    3. Adjust concurrent downloads setting
+    4. Disable antivirus temporarily
+    5. Check firewall permissions
+    
+    See [Download & Network Errors](/troubleshooting/common-issues#download-network-errors) for detailed solutions.
+  </Accordion>
+
+  <Accordion title="Game crashes immediately after launch">
+    Check these common causes:
+    1. **Wrong Java version**: Ensure compatibility with Minecraft version
+    2. **Insufficient memory**: Increase RAM allocation
+    3. **Incompatible mods**: Disable problematic custom mods
+    4. **Corrupted files**: Clear cache and re-download
+    
+    Always check the logs for specific error messages.
+  </Accordion>
+
+  <Accordion title="Where do I find launcher logs?">
+    Logs are located at:
+    - Linux: `~/.local/share/liquidlauncher/logs/`
+    - macOS: `~/Library/Application Support/net.CCBlueX.LiquidLauncher/logs/`
+    - Windows: `%APPDATA%\liquidlauncher\logs\`
+    
+    Logs are named `launcher.log.YYYY-MM-DD` and rotated daily.
+  </Accordion>
+
+  <Accordion title="How do I report a bug?">
+    To report issues effectively:
+    1. Check if the issue is already reported on GitHub
+    2. Gather information:
+       - Launcher version
+       - Operating system and version
+       - Java version
+       - Latest launcher log
+       - Steps to reproduce
+    3. Create a detailed issue on the [GitHub repository](https://github.com/CCBlueX/LiquidLauncher/issues)
+    4. Include all relevant logs and screenshots
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Features
+
+<AccordionGroup>
+  <Accordion title="What is the 'Keep Launcher Open' option?">
+    When enabled:
+    - Launcher window remains visible after game starts
+    - Shows real-time game output and logs
+    - Allows easy game termination through launcher
+    
+    When disabled:
+    - Launcher minimizes/hides after game starts
+    - Reopens if game encounters errors
+    - Reduces memory usage during gameplay
+  </Accordion>
+
+  <Accordion title="What are concurrent downloads?">
+    This setting controls how many files download simultaneously:
+    - **Higher values**: Faster overall download time, more network usage
+    - **Lower values**: More stable, better for slower connections
+    - **Default**: Optimized for most users
+    
+    Adjust if experiencing download issues or wanting to optimize speed.
+  </Accordion>
+
+  <Accordion title="Can I use LiquidLauncher offline?">
+    Partially:
+    - **Offline accounts**: Work completely offline for local gameplay
+    - **Cached game files**: Play previously downloaded versions
+    - **No online features**: Can't download new builds, mods, or authenticate
+    
+    Initial setup requires internet connection for downloading game files.
+  </Accordion>
+
+  <Accordion title="What are branches?">
+    Branches represent different development stages:
+    - **Release/Stable**: Tested, stable builds for regular use
+    - **Beta**: Testing versions with new features
+    - **Nightly**: Latest development builds (may be unstable)
+    - **Legacy**: Older versions for specific Minecraft versions
+    
+    Each branch maintains separate game files and mod installations.
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<AccordionGroup>
+  <Accordion title="Where can I get support?">
+    Official support channels:
+    - **Discord**: Join the LiquidBounce Discord server for community help
+    - **GitHub Issues**: Report bugs and technical issues
+    - **Documentation**: Check this documentation for guides and solutions
+    - **Forum**: Visit the LiquidBounce forums for discussions
+    
+    Always check existing resources before asking questions.
+  </Accordion>
+
+  <Accordion title="How do I contribute to LiquidLauncher?">
+    Contributions are welcome!
+    1. Fork the [GitHub repository](https://github.com/CCBlueX/LiquidLauncher)
+    2. Make your changes
+    3. Test thoroughly
+    4. Submit a pull request with detailed description
+    5. Follow the contribution guidelines
+    
+    See the [Contributing Guide](/development/contributing) for more details.
+  </Accordion>
+</AccordionGroup>
+
+## Still Have Questions?
+
+If your question isn't answered here:
+- Check the [Common Issues](/troubleshooting/common-issues) page for specific problems
+- Review other documentation sections for detailed guides
+- Visit the LiquidBounce Discord for community support
+- Search or create a GitHub issue for technical problems

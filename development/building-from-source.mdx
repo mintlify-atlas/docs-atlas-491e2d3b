@@ -1,0 +1,263 @@
+---
+title: Building from Source
+description: Learn how to compile LiquidLauncher from source code
+---
+
+This guide will walk you through the process of building LiquidLauncher from source code. LiquidLauncher is built with Tauri, combining a Rust backend with a Svelte frontend.
+
+## Prerequisites
+
+Before you begin, ensure you have the following tools installed on your system:
+
+### Required Dependencies
+
+<CardGroup cols={3}>
+  <Card title="Rust" icon="rust">
+    Required for compiling the Tauri backend
+  </Card>
+  <Card title="Node.js" icon="node-js">
+    JavaScript runtime for the build process
+  </Card>
+  <Card title="Bun" icon="package">
+    Fast JavaScript package manager and runtime
+  </Card>
+</CardGroup>
+
+<Note>
+  LiquidLauncher uses a specific Rust nightly toolchain version: **nightly-2026-01-14**. This is automatically configured via the `rust-toolchain.toml` file in the repository.
+</Note>
+
+### Installing Rust
+
+If you don't have Rust installed, follow the instructions on [Rust's official website](https://www.rust-lang.org/learn/get-started):
+
+<CodeGroup>
+```bash macOS/Linux
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+```powershell Windows
+# Download and run rustup-init.exe from https://rustup.rs/
+```
+</CodeGroup>
+
+### Installing Bun
+
+Install Bun by following the instructions on [Bun's official website](https://bun.sh):
+
+<CodeGroup>
+```bash macOS/Linux
+curl -fsSL https://bun.sh/install | bash
+```
+
+```powershell Windows
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+</CodeGroup>
+
+## Cloning the Repository
+
+<Steps>
+  <Step title="Clone with submodules">
+    Clone the repository including all submodules:
+    
+    ```bash
+    git clone --recurse-submodules https://github.com/CCBlueX/LiquidLauncher
+    ```
+    
+    <Note>
+      The `--recurse-submodules` flag is important as the project depends on Git submodules.
+    </Note>
+  </Step>
+  
+  <Step title="Navigate to the directory">
+    Change into the project directory:
+    
+    ```bash
+    cd LiquidLauncher
+    ```
+  </Step>
+</Steps>
+
+## Building the Project
+
+<Steps>
+  <Step title="Install dependencies and build">
+    Install all required Node.js dependencies and build the frontend:
+    
+    ```bash
+    bun install && bun run build
+    ```
+    
+    This command does two things:
+    - `bun install` - Installs all npm dependencies from `package.json`
+    - `bun run build` - Runs Vite to build the frontend application
+  </Step>
+  
+  <Step title="Run in development mode (optional)">
+    To run the launcher in development mode with hot-reloading:
+    
+    ```bash
+    bun run tauri dev
+    ```
+    
+    This will:
+    - Start the Vite development server
+    - Compile the Rust backend
+    - Launch the application with debugging enabled
+  </Step>
+  
+  <Step title="Build production executable">
+    To create a production-ready executable:
+    
+    ```bash
+    bun run tauri build
+    ```
+    
+    This will:
+    - Build the frontend in production mode
+    - Compile the Rust backend with optimizations
+    - Create platform-specific installers in `src-tauri/target/release`
+  </Step>
+</Steps>
+
+## Available Scripts
+
+Here are the npm scripts defined in `package.json`:
+
+<CodeGroup>
+```json Development
+{
+  "dev": "vite",
+  "tauri": "tauri"
+}
+```
+
+```json Production
+{
+  "build": "vite build",
+  "preview": "vite preview"
+}
+```
+</CodeGroup>
+
+### Script Usage
+
+- `bun run dev` - Start Vite development server only (frontend)
+- `bun run build` - Build frontend for production
+- `bun run preview` - Preview production build locally
+- `bun run tauri dev` - Run full application in development mode
+- `bun run tauri build` - Build complete application for production
+
+## Project Structure
+
+Understanding the project layout:
+
+```
+LiquidLauncher/
+├── src/                    # Frontend source (Svelte)
+│   ├── App.svelte         # Main application component
+│   ├── lib/               # Reusable Svelte components
+│   └── app.css            # Global styles
+├── src-tauri/             # Backend source (Rust)
+│   ├── src/               # Rust source code
+│   ├── Cargo.toml         # Rust dependencies
+│   └── tauri.conf.json    # Tauri configuration
+├── package.json           # Node.js dependencies and scripts
+├── rust-toolchain.toml    # Rust toolchain version
+└── vite.config.js         # Vite bundler configuration
+```
+
+## Rust Toolchain Configuration
+
+The project uses a pinned Rust nightly toolchain specified in `rust-toolchain.toml`:
+
+```toml
+[toolchain]
+channel = "nightly-2026-01-14"
+```
+
+<Warning>
+  This specific toolchain version is required for compatibility. Rustup will automatically download and use this version when building the project.
+</Warning>
+
+## Build Requirements
+
+### Minimum Versions
+
+- **Rust**: 1.79.0 or higher (specified in `Cargo.toml`)
+- **Node.js**: 16.x or higher (for Vite 5)
+- **Bun**: 1.0.0 or higher
+
+### Platform-Specific Requirements
+
+<Tabs>
+  <Tab title="Windows">
+    - Microsoft Visual C++ Build Tools
+    - Windows 10 SDK
+  </Tab>
+  <Tab title="macOS">
+    - Xcode Command Line Tools
+    - macOS 10.15 or higher
+  </Tab>
+  <Tab title="Linux">
+    - WebKit2GTK (webkit2gtk-4.1)
+    - GTK 3
+    - libappindicator3
+    
+    Install on Ubuntu/Debian:
+    ```bash
+    sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Build fails with Rust errors">
+    Ensure you're using the correct Rust toolchain:
+    
+    ```bash
+    rustup show
+    ```
+    
+    The output should show `nightly-2026-01-14`. If not, run:
+    
+    ```bash
+    rustup install nightly-2026-01-14
+    ```
+  </Accordion>
+  
+  <Accordion title="Submodule errors during build">
+    If you forgot to clone with `--recurse-submodules`, initialize them manually:
+    
+    ```bash
+    git submodule update --init --recursive
+    ```
+  </Accordion>
+  
+  <Accordion title="Node.js dependency issues">
+    Clear the cache and reinstall:
+    
+    ```bash
+    rm -rf node_modules bun.lock
+    bun install
+    ```
+  </Accordion>
+  
+  <Accordion title="Tauri compilation errors">
+    Make sure you have all platform-specific dependencies installed. See the Platform-Specific Requirements section above.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Learn how to contribute to LiquidLauncher
+  </Card>
+  <Card title="Architecture Overview" icon="sitemap" href="/development/architecture/overview">
+    Explore the architecture and codebase structure
+  </Card>
+</CardGroup>

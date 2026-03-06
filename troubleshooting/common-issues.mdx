@@ -1,0 +1,262 @@
+---
+title: Common Issues
+description: Solutions to frequently encountered problems in LiquidLauncher
+---
+
+This page covers common issues you might encounter when using LiquidLauncher and how to resolve them.
+
+## Java Runtime Issues
+
+<AccordionGroup>
+  <Accordion title="Java runtime not found">
+    If you encounter errors like "Java runtime not found at: [path]", this means the launcher cannot locate the Java executable.
+
+    **Solutions:**
+    1. **Automatic Download**: LiquidLauncher can automatically download Java runtimes. Try selecting "Auto-detect Java" in the launcher settings.
+    2. **Manual Installation**: Download and install the correct Java version for your Minecraft version:
+       - Java 8: For Minecraft 1.12.2 and earlier
+       - Java 17: For Minecraft 1.17-1.20
+       - Java 21+: For Minecraft 1.21+
+    3. **Custom Java Path**: If you have Java installed, specify the custom Java path in the launcher settings
+
+    <Note>
+      The launcher supports multiple Java distributions including Oracle GraalVM and Azul Zulu.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Process exited with non-zero exit code">
+    When the game crashes immediately after launch with a non-zero exit code, this typically indicates:
+
+    **Common causes:**
+    - Incompatible Java version
+    - Insufficient memory allocation
+    - Corrupted game files
+    - Missing or conflicting mods
+
+    **Solutions:**
+    1. Check the launcher logs (see [Log File Locations](#log-file-locations))
+    2. Try increasing memory allocation in launcher settings
+    3. Verify you're using the correct Java version
+    4. Clear mod cache and re-download game files
+  </Accordion>
+
+  <Accordion title="Insufficient memory errors">
+    If you see "OutOfMemoryError" or the game crashes due to memory issues:
+
+    **Solutions:**
+    1. **Increase Memory Allocation**: In launcher settings, increase the memory limit (recommended: 2-4GB for vanilla, 4-8GB with mods)
+    2. **Close Other Applications**: Free up system memory by closing unnecessary programs
+    3. **Use 64-bit Java**: Ensure you're using 64-bit Java for larger memory allocations
+    4. **Add JVM Arguments**: Consider adding optimization flags like:
+       ```
+       -XX:+UseG1GC -XX:+UnlockExperimentalVMOptions
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Authentication Errors
+
+<AccordionGroup>
+  <Accordion title="Microsoft authentication failed">
+    If Microsoft login fails or you can't authenticate:
+
+    **Common causes:**
+    - Expired authentication tokens
+    - Network connectivity issues
+    - Microsoft service outages
+    - Firewall blocking authentication
+
+    **Solutions:**
+    1. **Retry Authentication**: Log out and log back in using the Microsoft authentication flow
+    2. **Check Internet Connection**: Ensure you have a stable internet connection
+    3. **Verify Device Code**: When prompted with a device code, make sure to enter it at the correct URL (usually https://microsoft.com/link)
+    4. **Clear Authentication Cache**: Remove stored credentials and re-authenticate
+    5. **Check Firewall**: Ensure your firewall allows connections to Microsoft authentication servers
+
+    <Warning>
+      Authentication tokens expire after a certain period. The launcher automatically refreshes them, but manual re-authentication may be required if refresh fails.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Unable to refresh access token">
+    If you see "unable to refresh: [error]" messages:
+
+    **Cause:**
+    The stored refresh token has expired or been revoked by Microsoft.
+
+    **Solution:**
+    1. Log out from the launcher
+    2. Log back in to obtain fresh authentication tokens
+    3. If the issue persists, revoke LiquidLauncher's access in your Microsoft account settings and re-authenticate
+  </Accordion>
+
+  <Accordion title="Offline mode not working">
+    Offline accounts are generated locally and don't require authentication.
+
+    **How offline mode works:**
+    - UUID is generated from the format: `OfflinePlayer:<username>` using MD5 hash
+    - No online verification is performed
+    - Works on servers with `online-mode=false`
+
+    <Note>
+      Offline accounts cannot join servers with online authentication enabled.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+## Download & Network Errors
+
+<AccordionGroup>
+  <Accordion title="Failed to download files">
+    If downloads fail with connection errors:
+
+    **Solutions:**
+    1. **Use a VPN**: Connection issues might be caused by network restrictions. Try using a VPN like Cloudflare Warp
+    2. **Check Firewall**: Ensure your firewall allows the launcher to download files
+    3. **Retry Failed Downloads**: The launcher automatically retries failed downloads with exponential backoff
+    4. **Check Disk Space**: Ensure you have sufficient disk space for downloads
+    5. **Disable Antivirus Temporarily**: Some antivirus software may block downloads
+
+    <Warning>
+      The error message "Failed to download file. This might have been caused by connection issues. Please try using a VPN such as Cloudflare Warp" indicates network connectivity problems.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Download stuck or very slow">
+    **Solutions:**
+    1. **Adjust Concurrent Downloads**: In launcher settings, modify the number of concurrent downloads (default varies, try reducing if experiencing issues)
+    2. **Check Network Speed**: Run a speed test to verify your connection
+    3. **Change DNS**: Try using alternative DNS servers (e.g., 1.1.1.1 or 8.8.8.8)
+    4. **Disable Download Acceleration**: Some network tools may interfere
+  </Accordion>
+
+  <Accordion title="SHA1/Checksum mismatch errors">
+    If you see "SHA1 mismatch" or "Client JAR download failed" errors:
+
+    **Cause:**
+    Downloaded files are corrupted or incomplete.
+
+    **Solutions:**
+    1. Delete the corrupted files from the cache directory
+    2. Restart the launcher to re-download
+    3. Check your internet connection stability
+    4. Verify antivirus isn't modifying downloaded files
+  </Accordion>
+
+  <Accordion title="Unable to fetch launch manifest or build information">
+    If you can't load game versions or builds:
+
+    **Solutions:**
+    1. **Check API Status**: The LiquidBounce API might be temporarily unavailable
+    2. **Verify Internet Connection**: Ensure you can access api.liquidbounce.net
+    3. **Wait and Retry**: The launcher implements automatic retry with exponential backoff
+    4. **Check Logs**: Review launcher logs for detailed error messages
+  </Accordion>
+</AccordionGroup>
+
+## Launch Failures
+
+<AccordionGroup>
+  <Accordion title="Client is already running">
+    If you see "client is already running" when trying to launch:
+
+    **Solutions:**
+    1. Check if a game instance is already running in the background
+    2. Use Task Manager (Windows) or Activity Monitor (macOS) to close any running Minecraft processes
+    3. Restart the launcher
+  </Accordion>
+
+  <Accordion title="Invalid version profile errors">
+    Errors like "Invalid version profile: [message]" indicate:
+
+    **Common causes:**
+    - Corrupted version manifest
+    - Missing inherited version
+    - Invalid template parameters
+
+    **Solutions:**
+    1. Clear the launcher cache
+    2. Re-download the version profile
+    3. Check for launcher updates
+  </Accordion>
+
+  <Accordion title="Mod loading failures">
+    If specific mods fail to load:
+
+    **Solutions:**
+    1. **Check Mod Compatibility**: Ensure mods are compatible with your Minecraft version
+    2. **Review Mod Cache**: Delete the mod cache directory and re-download
+    3. **Verify Custom Mods**: For locally installed mods, ensure the .jar files are not corrupted
+    4. **Check Required vs Optional**: Some mods are required, others are optional
+    5. **Review Logs**: Look for specific mod errors in the game logs
+  </Accordion>
+</AccordionGroup>
+
+## Permission & File System Issues
+
+<AccordionGroup>
+  <Accordion title="Unable to create directories or write files">
+    Permission errors when creating game directories:
+
+    **Solutions:**
+    1. **Run as Administrator** (Windows): Right-click launcher and select "Run as administrator"
+    2. **Check Permissions** (Linux/macOS): Ensure the launcher has write permissions to:
+       - `~/.local/share/liquidlauncher` (Linux)
+       - `~/Library/Application Support/net.CCBlueX.LiquidLauncher` (macOS)
+       - `%APPDATA%\liquidlauncher` (Windows)
+    3. **Disable Read-Only**: Ensure launcher directories are not marked as read-only
+    4. **Check Disk Space**: Verify sufficient free space is available
+  </Accordion>
+
+  <Accordion title="Custom data path not working">
+    If custom game directory doesn't work:
+
+    **Solutions:**
+    1. Ensure the path exists and is writable
+    2. Use absolute paths, not relative paths
+    3. Avoid special characters in path names
+    4. On Windows, avoid paths longer than 260 characters
+  </Accordion>
+</AccordionGroup>
+
+## Log File Locations
+
+Launcher logs are essential for troubleshooting. Find them at:
+
+<CodeGroup>
+```bash Linux
+~/.local/share/liquidlauncher/logs/
+```
+
+```bash macOS
+~/Library/Application Support/net.CCBlueX.LiquidLauncher/logs/
+```
+
+```bash Windows
+%APPDATA%\liquidlauncher\logs\
+```
+</CodeGroup>
+
+**Log file details:**
+- Logs are rotated daily with filename format: `launcher.log.YYYY-MM-DD`
+- Old logs are automatically cleaned after 7 days
+- Logs contain debug information about launcher operations, downloads, and errors
+- Both stdout and file logging are enabled for comprehensive debugging
+
+<Note>
+  When seeking help, always provide your latest launcher log file. It contains crucial information for diagnosing issues.
+</Note>
+
+## Still Having Issues?
+
+If you're still experiencing problems after trying these solutions:
+
+1. **Check the [FAQ](/troubleshooting/faq)** for additional common questions
+2. **Review the Logs**: Check the log files for detailed error messages
+3. **Update the Launcher**: Ensure you're running the latest version
+4. **Community Support**: Visit the LiquidBounce Discord or GitHub Issues for help
+5. **Report a Bug**: If you've found a bug, report it on GitHub with:
+   - Detailed description of the issue
+   - Steps to reproduce
+   - Launcher logs
+   - System information (OS, Java version, etc.)

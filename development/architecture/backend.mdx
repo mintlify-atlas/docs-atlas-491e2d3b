@@ -1,0 +1,461 @@
+---
+title: Backend Architecture
+description: Rust backend structure, Tauri commands, and module organization
+---
+
+The LiquidLauncher backend is written in Rust and built on the Tauri framework, providing system-level operations, file management, and Minecraft launching capabilities.
+
+## Module Structure
+
+The backend is organized into four primary modules:
+
+```
+src-tauri/src/
+├── main.rs              # Application entry point
+├── error.rs             # Error types
+├── app/                 # Application & GUI layer
+│   ├── mod.rs
+│   ├── gui/             # Tauri integration
+│   │   ├── mod.rs       # AppState and gui_main
+│   │   └── commands/    # Command handlers
+│   │       ├── auth.rs  # Authentication commands
+│   │       ├── client.rs # Client/launch commands
+│   │       ├── data.rs  # Data management
+│   │       └── system.rs # System utilities
+│   ├── client_api.rs    # LiquidBounce API
+│   ├── options.rs       # Configuration
+│   └── webview.rs       # WebView helpers
+├── minecraft/           # Minecraft-specific logic
+│   ├── mod.rs
+│   ├── launcher/        # Core launcher
+│   ├── version.rs       # Version profiles
+│   ├── auth.rs          # MC authentication
+│   ├── prelauncher.rs   # Pre-launch setup
+│   ├── progress.rs      # Progress tracking
+│   ├── rule_interpreter.rs
+│   └── java/            # Java runtime
+├── auth/                # Authentication module
+│   └── mod.rs
+└── utils/               # Shared utilities
+    ├── checksum.rs
+    ├── download.rs
+    ├── extract.rs
+    ├── hosts.rs
+    ├── macros.rs
+    ├── maven.rs
+    └── sys.rs
+```
+
+## Application State
+
+The backend maintains application state using Tauri's state management:
+
+```rust title="src-tauri/src/app/gui/mod.rs:31-41"
+pub struct AppState {
+    pub runner_instance: Arc<Mutex<Option<RunnerInstance>>>,
+}
+
+pub struct RunnerInstance {
+    pub terminator: tokio::sync::oneshot::Sender<()>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            runner_instance: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+```
+
+<Note>
+The `AppState` tracks the running game instance and provides a termination channel for stopping the game process.
+</Note>
+
+## Tauri Commands
+
+Tauri commands are the primary interface between frontend and backend. They are registered in `gui_main()`:
+
+```rust title="src-tauri/src/app/gui/mod.rs:46-82"
+pub fn gui_main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(AppState::new())
+        .invoke_handler(tauri::generate_handler![
+            setup_client,
+            check_system,
+            sys_memory,
+            get_options,
+            store_options,
+            request_branches,
+            request_builds,
+            request_mods,
+            run_client,
+            login_offline,
+            login_microsoft,
+            client_account_authenticate,
+            client_account_update,
+            logout,
+            refresh,
+            fetch_blog_posts,
+            fetch_changelog,
+            clear_data,
+            default_data_folder_path,
+            terminate,
+            get_launcher_version,
+            get_custom_mods,
+            install_custom_mod,
+            delete_custom_mod
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+### Command Categories
+
+<Accordion title="Client Commands (client.rs)">
+
+#### request_branches
+Fetches available branches (stable, beta, etc.) from the LiquidBounce API:
+
+```rust title="src-tauri/src/app/gui/commands/client.rs:43-52"
+#[tauri::command]
+pub(crate) async fn request_branches(client: Client) -> Result<Branches, String> {
+    let branches = (|| async { client.branches().await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request branches. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request branches: {:?}", e))?;
+    Ok(branches)
+}
+```
+
+#### request_builds
+Fetches builds for a specific branch:
+
+```rust title="src-tauri/src/app/gui/commands/client.rs:56-65"
+#[tauri::command]
+pub(crate) async fn request_builds(
+    client: Client, 
+    branch: &str, 
+    release: bool
+) -> Result<Vec<Build>, String> {
+    let builds = (|| async { client.builds_by_branch(branch, release).await })
+        .retry(ExponentialBuilder::default())
+        .await
+        .map_err(|e| format!("unable to request builds: {:?}", e))?;
+    Ok(builds)
+}
+```
+
+#### run_client
+The most complex command - launches the Minecraft client. See [Launcher Core](/development/architecture/launcher-core) for details.
+
+#### terminate
+Stops the running game process:
+
+```rust title="src-tauri/src/app/gui/commands/client.rs:405-415"
+#[tauri::command]
+pub(crate) async fn terminate(app_state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mut lck = app_state.runner_instance.lock()
+        .map_err(|e| format!("unable to lock runner instance: {:?}", e))?;
+    
+    if let Some(inst) = lck.take() {
+        info!("Sending sigterm");
+        inst.terminator.send(()).unwrap();
+    }
+    Ok(())
+}
+```
+
+</Accordion>
+
+<Accordion title="Authentication Commands (auth.rs)">
+
+Handles Minecraft account authentication:
+
+- `login_offline` - Creates offline account
+- `login_microsoft` - Initiates Microsoft OAuth flow
+- `logout` - Removes stored account
+- `refresh` - Refreshes Microsoft account tokens
+- `client_account_authenticate` - Authenticates with LiquidBounce API
+- `client_account_update` - Updates account information
+
+</Accordion>
+
+<Accordion title="Data Commands (data.rs)">
+
+Manages application data and configuration:
+
+- `get_options` - Loads user options from disk
+- `store_options` - Saves user options to disk
+- `clear_data` - Clears launcher data
+- `default_data_folder_path` - Returns default data directory
+- `get_custom_mods` - Lists custom mods
+- `install_custom_mod` - Installs a custom mod file
+- `delete_custom_mod` - Removes a custom mod
+
+</Accordion>
+
+<Accordion title="System Commands (system.rs)">
+
+System information and checks:
+
+- `check_system` - Validates system configuration
+- `sys_memory` - Returns available system memory
+- `get_launcher_version` - Returns launcher version string
+
+</Accordion>
+
+## Error Handling
+
+LiquidLauncher uses Rust's `Result` type with custom error enums:
+
+```rust title="src-tauri/src/error.rs:22-28"
+#[derive(Error, Debug)]
+pub enum LauncherError {
+    #[error("Invalid version profile: {0}")]
+    InvalidVersionProfile(String),
+    #[error("Unknown template parameter: {0}")]
+    UnknownTemplateParameter(String),
+}
+```
+
+### Error Propagation
+
+<Steps>
+
+### 1. Error Occurs
+Rust functions return `Result<T, E>`:
+
+```rust
+fn download_file(url: &str) -> Result<Vec<u8>> {
+    // May fail with network error
+}
+```
+
+### 2. Error Propagated with `?`
+The `?` operator propagates errors up the call stack:
+
+```rust
+pub async fn setup_assets() -> Result<()> {
+    let data = download_file(url)?; // Propagates error
+    Ok(())
+}
+```
+
+### 3. Error Converted at Boundary
+Tauri commands convert `Result` to `String` for JavaScript:
+
+```rust
+#[tauri::command]
+pub async fn my_command() -> Result<Data, String> {
+    let result = fallible_operation()
+        .map_err(|e| format!("Operation failed: {:?}", e))?;
+    Ok(result)
+}
+```
+
+### 4. Error Handled in Frontend
+
+```javascript
+try {
+    await invoke("my_command");
+} catch (error) {
+    console.error("Command failed:", error);
+}
+```
+
+</Steps>
+
+### Connection Error Helper
+
+For network errors, a helper provides user-friendly messages:
+
+```rust title="src-tauri/src/error.rs:30-35"
+pub fn map_into_connection_error(e: Error) -> Error {
+    anyhow!(
+        "Failed to download file. This might have been caused by connection issues. \
+        Please try using a VPN such as Cloudflare Warp.\n\nError: {}",
+        e
+    )
+}
+```
+
+## Event System
+
+For asynchronous updates (progress, logs), the backend emits events:
+
+```rust title="src-tauri/src/app/gui/commands/client.rs:234-247"
+fn handle_progress(
+    window: &ShareableWindow,
+    progress_update: ProgressUpdate,
+) -> anyhow::Result<()> {
+    window
+        .lock()
+        .map_err(|_| anyhow!("Window lock is poisoned"))?
+        .emit("progress-update", &progress_update)?;
+    
+    if let ProgressUpdate::SetLabel(label) = progress_update {
+        handle_log(window, &label)?;
+    }
+    Ok(())
+}
+```
+
+### Event Types
+
+- `progress-update` - Download/installation progress
+- `process-output` - Game stdout/stderr
+- `client-error` - Launch errors
+- `client-exited` - Game process terminated
+
+## HTTP Client
+
+A shared HTTP client is used throughout the application:
+
+```rust title="src-tauri/src/main.rs:52-62"
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
+static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
+    let client = reqwest::ClientBuilder::new()
+        .user_agent(APP_USER_AGENT)
+        .build()
+        .unwrap_or_else(|_| Client::new());
+    client
+});
+```
+
+<Note>
+The HTTP client includes retry logic using the `backon` crate with exponential backoff for reliability.
+</Note>
+
+## Async Runtime
+
+Tauri commands run in Tokio's async runtime:
+
+```rust title="src-tauri/src/app/gui/commands/client.rs:355-361"
+thread::spawn(move || {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            // Async operations here
+        });
+});
+```
+
+## Logging
+
+The backend uses `tracing` for structured logging:
+
+```rust title="src-tauri/src/main.rs:67-86"
+let logs = LAUNCHER_DIRECTORY.data_dir().join("logs");
+utils::clean_directory(&logs, 7)?; // Keep 7 days
+
+let file_appender = tracing_appender::rolling::daily(logs, "launcher.log");
+
+let subscriber = tracing_subscriber::registry()
+    .with(EnvFilter::from("liquidlauncher=debug"))
+    .with(
+        fmt::Layer::new()
+            .with_ansi(true)
+            .with_writer(io::stdout),  // Console output
+    )
+    .with(
+        fmt::Layer::new()
+            .with_ansi(false)
+            .with_writer(file_appender),  // File output
+    );
+tracing::subscriber::set_global_default(subscriber)
+    .expect("Unable to set a global subscriber");
+```
+
+<Note>
+Logs are written to both console (with ANSI colors) and rotating daily files, kept for 7 days.
+</Note>
+
+## Utilities Module
+
+The `utils` module provides shared functionality:
+
+<Accordion title="Available Utilities">
+
+### download.rs
+File downloading with progress callbacks:
+```rust
+pub async fn download_file<F>(url: &str, progress_fn: F) -> Result<Vec<u8>>
+where
+    F: Fn(u64, u64),
+```
+
+### checksum.rs
+SHA1 checksum verification:
+```rust
+pub fn sha1sum(path: impl AsRef<Path>) -> Result<String>
+```
+
+### extract.rs
+Archive extraction (ZIP, TAR, etc.)
+
+### maven.rs
+Maven artifact path resolution:
+```rust
+pub fn get_maven_artifact_path(artifact: &str) -> Result<String>
+```
+
+### sys.rs
+System detection:
+```rust
+pub static OS: &str = /* "linux", "windows", "macos" */;
+pub static ARCHITECTURE: &str = /* "x86_64", "aarch64", etc. */;
+```
+
+### macros.rs
+Convenience macros:
+```rust
+macro_rules! mkdir {
+    ($path:expr) => {
+        std::fs::create_dir_all($path)?;
+    };
+}
+```
+
+</Accordion>
+
+## Best Practices
+
+<Note>
+**Use `?` for error propagation** - Don't use `.unwrap()` or `.expect()` in production code paths
+</Note>
+
+<Note>
+**Prefer async operations** - Use `tokio::fs` instead of `std::fs` for file I/O to avoid blocking
+</Note>
+
+<Note>
+**Emit events for updates** - Use the event system for progress updates rather than returning large data structures
+</Note>
+
+<Note>
+**Log appropriately** - Use `trace!`, `debug!`, `info!`, `warn!`, `error!` at appropriate levels
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Frontend Architecture" icon="code" href="./frontend">
+    Learn about Svelte components and UI structure
+  </Card>
+  <Card title="Launcher Core" icon="rocket" href="./launcher-core">
+    Understand the game launch process in depth
+  </Card>
+</CardGroup>

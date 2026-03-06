@@ -1,80 +1,391 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with LiquidLauncher and launch your first game in minutes
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before you begin, make sure you have:
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Installed LiquidLauncher">
+    Follow the [installation guide](/installation) to download and install LiquidLauncher for your operating system.
+  </Step>
+  
+  <Step title="System Requirements Met">
+    Ensure you have at least 4 GB of RAM (8 GB recommended) and 2 GB of free disk space.
+  </Step>
+</Steps>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## First Launch Walkthrough
+
+This guide will take you from first launch to playing Minecraft with LiquidBounce in under 5 minutes.
+
+### Step 1: Launch LiquidLauncher
+
+Open LiquidLauncher from your applications menu or desktop shortcut. On first launch:
+
+<Steps>
+  <Step title="Loading Screen">
+    The launcher will:
+    - Load configuration settings
+    - Check for launcher updates
+    - Connect to the LiquidBounce API
+    - Verify system compatibility
+  </Step>
+  
+  <Step title="Update Check">
+    If an update is available, you'll be prompted:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    <Info>
+      "A Launcher update is available. Would you like to install it now?"
+    </Info>
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    It's recommended to install updates before proceeding.
+  </Step>
+</Steps>
 
-### Step 2: Deploy your changes
+### Step 2: Account Setup
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+After the launcher loads, you'll see the **Login Screen**. You have two options:
+
+<Tabs>
+  <Tab title="Microsoft Account (Recommended)">
+    Sign in with your Microsoft account for full Minecraft features.
+
+    <Steps>
+      <Step title="Click 'Microsoft login'">
+        Click the blue **Microsoft login** button in the login modal.
+      </Step>
+      
+      <Step title="Open Link Page">
+        A device code will appear in the launcher. Click the **Link** button to open [microsoft.com/link](https://microsoft.com/link) in your browser.
+      </Step>
+      
+      <Step title="Enter Code">
+        Enter the code shown in the launcher and sign in with your Microsoft account.
+      </Step>
+      
+      <Step title="Authorize Access">
+        Grant LiquidLauncher permission to access your Minecraft account.
+      </Step>
+      
+      <Step title="Complete Login">
+        Return to the launcher - you'll be automatically logged in.
+      </Step>
+    </Steps>
+
+    <Note>
+      Your Microsoft account must own Minecraft: Java Edition. If you don't have access, use the offline option instead.
+    </Note>
+  </Tab>
+  
+  <Tab title="Offline Account">
+    Create an offline account for local play without Microsoft authentication.
+
+    <Steps>
+      <Step title="Enter Username">
+        Type a username in the **Username** field.
+        
+        <Warning>
+          Usernames must be:
+          - Between 1-16 characters
+          - Contain only letters, numbers, and underscores
+          - Example: `Player123` or `Steve_2024`
+        </Warning>
+      </Step>
+      
+      <Step title="Click 'Offline login'">
+        Click the **Offline login** button to create your account.
+      </Step>
+      
+      <Step title="Account Created">
+        Your offline account is now ready to use!
+      </Step>
+    </Steps>
+
+    <Info>
+      Offline accounts can't join online servers that require authentication, but work perfectly for local play with LiquidBounce.
+    </Info>
+  </Tab>
+</Tabs>
+
+### Step 3: Main Screen Overview
+
+Once logged in, you'll see the main launcher interface:
+
+<img src="/images/main-screen.png" alt="LiquidLauncher Main Screen" className="rounded-lg border" />
+
+**Key areas:**
+
+- **Account Info** (top right): Shows your username and account type. Click the gear icon to open settings.
+- **Version Selector**: Display current LiquidBounce version and Minecraft version
+- **Launch Button**: Large button to start the game (turns to **Terminate** while running)
+- **News Area**: Latest updates and announcements from LiquidBounce
+
+### Step 4: Select a LiquidBounce Build
+
+Before launching, you can choose which version of LiquidBounce to use:
+
+<Steps>
+  <Step title="Open Version Selector">
+    Click the **version card** or **version button** in the launch area to open the version selection menu.
+  </Step>
+  
+  <Step title="Choose a Branch">
+    Select from available branches:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Tabs>
+      <Tab title="Nextgen (Recommended)">
+        The latest and most stable version of LiquidBounce.
+        
+        - **Best for**: Most users
+        - **Stability**: High
+        - **Features**: Latest stable features
+      </Tab>
+      
+      <Tab title="Legacy">
+        Older stable version for compatibility.
+        
+        - **Best for**: Users who need older Minecraft versions
+        - **Stability**: High
+        - **Features**: Classic LiquidBounce experience
+        
+        <Warning>
+          You'll see a warning when launching legacy builds. This is normal - click **Continue** if you want to use this version.
+        </Warning>
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Select a Build">
+    Each branch has multiple builds available:
+    
+    - **Latest Build** (recommended): Automatic selection of the newest release
+    - **Specific Build**: Choose a particular version by date and build number
+    
+    <Tip>
+      The launcher defaults to the latest build of the recommended branch. You can change this anytime.
+    </Tip>
+  </Step>
+  
+  <Step title="View Changelog">
+    Before confirming, you can view:
+    - Build date and version number
+    - Minecraft version compatibility
+    - Changelog with recent changes
+  </Step>
+  
+  <Step title="Confirm Selection">
+    Click **Done** or close the version selector to save your choice.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+### Step 5: Configure Game Settings (Optional)
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Before your first launch, you may want to adjust settings:
 
-### Step 3: Go live
+<Steps>
+  <Step title="Open Settings">
+    Click the **gear icon** next to your account name in the top right.
+  </Step>
+  
+  <Step title="Adjust Memory Allocation">
+    Navigate to **General** tab:
+    
+    - **Memory**: Allocate RAM for Minecraft (default: 2048 MB)
+      - **Recommended**: 4096 MB (4 GB) for best performance
+      - **Maximum**: Use up to 80% of your system RAM
+    
+    <Warning>
+      Allocating less than 4 GB may cause performance issues. You'll receive a warning if you try to launch with low memory.
+    </Warning>
+  </Step>
+  
+  <Step title="Configure Java Runtime (Optional)">
+    Choose how Java is managed:
+    
+    - **Automatic** (recommended): LiquidLauncher downloads and manages Java
+    - **Manual**: Choose from Eclipse Temurin, GraalVM, or Azul Zulu
+    - **Custom**: Specify your own Java installation path
+    
+    <Info>
+      Most users should use **Automatic** mode. The launcher will download the correct Java version for your selected Minecraft version.
+    </Info>
+  </Step>
+  
+  <Step title="Set Data Location (Optional)">
+    By default, game files are stored in:
+    - **Windows**: `%APPDATA%\LiquidLauncher`
+    - **macOS**: `~/Library/Application Support/LiquidLauncher`
+    - **Linux**: `~/.local/share/LiquidLauncher`
+    
+    You can change this in **Settings** → **General** → **Data Location**.
+  </Step>
+  
+  <Step title="Save Settings">
+    Close the settings panel - your preferences are saved automatically.
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+### Step 6: Launch the Game
 
-## Next steps
+You're ready to play!
 
-Now that you have your docs running, explore these key features:
+<Steps>
+  <Step title="Click Launch">
+    Click the large **Launch** button in the center of the screen.
+  </Step>
+  
+  <Step title="First Run Warning">
+    On your very first launch, you'll see a warning dialog:
+    
+    <Info>
+      This is a first-time setup notice. Click **Continue** to proceed.
+    </Info>
+    
+    This only appears once to confirm you're ready to start.
+  </Step>
+  
+  <Step title="Authentication & Download">
+    The launcher will now:
+    
+    1. **Authenticate** your Minecraft account (if using Microsoft)
+    2. **Download Java runtime** if not already installed
+    3. **Download Minecraft** files for the selected version
+    4. **Download LiquidBounce** client for the selected build
+    5. **Prepare game files** and mods
+    
+    <Tip>
+      Watch the progress bar at the top of the screen. The first launch takes longer due to downloads.
+    </Tip>
+  </Step>
+  
+  <Step title="Game Starts">
+    Once preparation is complete, Minecraft will launch with LiquidBounce installed!
+    
+    The launcher will:
+    - Show a **Terminate** button (to stop the game)
+    - Display **Client Log** option to view game output
+    - Continue running in the background (unless you disable this in settings)
+  </Step>
+</Steps>
+
+### Step 7: Managing the Running Game
+
+While your game is running:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="View Logs" icon="scroll">
+    Click **Show Client Log** to view Minecraft's console output. Useful for debugging issues.
+  </Card>
+  
+  <Card title="Terminate Game" icon="stop">
+    Click **Terminate** to force-close Minecraft if it becomes unresponsive.
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  The launcher keeps track of the game process. When you close Minecraft normally, the launcher will detect this and reset the **Launch** button.
+</Note>
+
+## Troubleshooting First Launch
+
+<AccordionGroup>
+  <Accordion title="Game Won't Launch" icon="triangle-exclamation">
+    If the game fails to start:
+    
+    1. **Check the Client Log**: Click **Show Client Log** to see error messages
+    2. **Verify Memory**: Ensure you allocated at least 2048 MB in settings
+    3. **Check Internet**: Some files need to be downloaded on first launch
+    4. **Try Again**: Click **Launch** again - temporary network issues can cause failures
+  </Accordion>
+  
+  <Accordion title="Microsoft Login Failed" icon="microsoft">
+    If Microsoft authentication fails:
+    
+    1. **Check Account**: Ensure you own Minecraft: Java Edition
+    2. **Browser Issues**: Try opening the link in a different browser
+    3. **Firewall**: Check if your firewall is blocking the authentication
+    4. **Fallback**: Use **Offline login** as a temporary alternative
+    
+    <Warning>
+      If Microsoft login continues to fail, you can log in through the client's built-in account manager after launching in offline mode.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="Download Stuck or Slow" icon="download">
+    If downloads are taking too long:
+    
+    1. **Check Connection**: Verify your internet connection is stable
+    2. **Concurrent Downloads**: Increase this in **Settings** → **General** (default: 8, max: 50)
+    3. **Retry**: Close and relaunch the launcher
+    4. **CDN Issues**: The LiquidBounce API may be experiencing high traffic
+  </Accordion>
+  
+  <Accordion title="Java Download Failed" icon="coffee">
+    If automatic Java installation fails:
+    
+    1. **Check Disk Space**: Ensure you have at least 500 MB free
+    2. **Manual Mode**: Switch to **Manual** Java distribution in settings
+    3. **Custom Java**: Install Java 17+ manually and use **Custom** mode
+    4. **Permissions**: Make sure the launcher has write access to its data directory
+  </Accordion>
+  
+  <Accordion title="Low Memory Warning" icon="memory">
+    If you see a memory warning:
+    
+    <Warning>
+      "You are about to launch the client with less than 4096 MB of memory. This may cause performance issues."
+    </Warning>
+    
+    - Click **Continue** to launch anyway (not recommended)
+    - Or click **Cancel** and increase memory allocation in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you've successfully launched LiquidBounce, explore more features:
+
+<CardGroup cols={2}>
+  <Card title="Manage Mods" icon="puzzle-piece" href="/user-guide/mods-management">
+    Learn how to install and manage custom mods
+  </Card>
+  
+  <Card title="Version Selection" icon="code-branch" href="/features/version-selection">
+    Switch between different LiquidBounce builds and Minecraft versions
+  </Card>
+  
+  <Card title="Settings Guide" icon="gear" href="/user-guide/settings">
+    Explore all launcher settings and customization options
+  </Card>
+  
+  <Card title="Account Management" icon="users" href="/user-guide/account-management">
+    Manage multiple accounts and switch between them
+  </Card>
+</CardGroup>
+
+## Tips for Best Experience
+
+<Steps>
+  <Step title="Enable Auto-Updates">
+    Keep **Keep launcher running** enabled in settings so you don't miss LiquidBounce updates.
+  </Step>
+  
+  <Step title="Use Recommended Builds">
+    Stick with the latest build of the **Nextgen** branch for best stability and features.
+  </Step>
+  
+  <Step title="Allocate Sufficient Memory">
+    Set memory to at least 4096 MB (4 GB) for smooth gameplay.
+  </Step>
+  
+  <Step title="Check News Regularly">
+    The news area in the launcher shows important announcements and updates.
+  </Step>
+</Steps>
+
+<Note>
+  Having issues? Check the [GitHub Issues](https://github.com/CCBlueX/LiquidLauncher/issues) page or join the [community](https://guilded.gg/CCBlueX) for help.
 </Note>

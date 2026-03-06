@@ -1,0 +1,843 @@
+---
+title: "Client API Commands"
+description: "Tauri commands for launching Minecraft, managing builds, and interacting with the LiquidBounce API"
+---
+
+## Overview
+
+Client API commands handle game launching, build management, mod installation, and data persistence. These commands are split across three files:
+- `src-tauri/src/app/gui/commands/client.rs` - Client launching and API interactions
+- `src-tauri/src/app/gui/commands/data.rs` - Data management
+- `src-tauri/src/app/gui/commands/system.rs` - System information
+
+## Client Launching
+
+### run_client
+
+Launch the Minecraft client with LiquidBounce. This command handles the entire launch process including downloading assets, libraries, and starting the game.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn run_client(
+    client: Client,
+    build_id: u32,
+    options: Options,
+    mods: Vec<LoaderMod>,
+    window: Window,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<(), String>
+```
+
+```javascript Usage
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+// Listen for progress updates
+await listen('progress-update', (event) => {
+  console.log('Progress:', event.payload);
+});
+
+// Listen for process output
+await listen('process-output', (event) => {
+  console.log('Output:', event.payload);
+});
+
+// Launch the client
+await invoke('run_client', {
+  client: clientInstance,
+  buildId: 12345,
+  options: launcherOptions,
+  mods: selectedMods
+});
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="build_id" type="number" required>
+  The build ID to launch (obtained from `request_builds`)
+</ParamField>
+
+<ParamField path="options" type="Options" required>
+  Launcher options including account, memory, JVM args, etc.
+  <Expandable title="Options structure">
+    <ParamField path="start.account" type="MinecraftAccount" required>
+      The Minecraft account to use for launching
+    </ParamField>
+    <ParamField path="start.memory" type="number" default="4096">
+      Memory allocation in MB
+    </ParamField>
+    <ParamField path="start.javaDistribution" type="string">
+      Java distribution to use (e.g., "Zulu", "Adoptium")
+    </ParamField>
+    <ParamField path="start.jvmArgs" type="string[]">
+      Additional JVM arguments
+    </ParamField>
+    <ParamField path="start.customDataPath" type="string">
+      Custom data directory path (empty for default)
+    </ParamField>
+    <ParamField path="launcher.keepLauncherOpen" type="boolean">
+      Whether to keep launcher open after starting the game
+    </ParamField>
+    <ParamField path="launcher.concurrentDownloads" type="number">
+      Number of concurrent downloads
+    </ParamField>
+    <ParamField path="premium.account" type="ClientAccount">
+      LiquidBounce account for premium features
+    </ParamField>
+    <ParamField path="premium.skipAdvertisement" type="boolean">
+      Skip advertisements (requires premium)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="mods" type="LoaderMod[]" required>
+  Array of mods to load with the client
+</ParamField>
+
+<ParamField path="window" type="Window" required>
+  Tauri window instance (automatically passed)
+</ParamField>
+
+<ParamField path="app_state" type="AppState" required>
+  Application state (automatically passed)
+</ParamField>
+
+<ResponseField name="result" type="void">
+  Returns nothing on successful launch start. The game runs in a separate thread.
+</ResponseField>
+
+**Events Emitted:**
+
+<ResponseField name="progress-update" type="ProgressUpdate">
+  Emitted during launch preparation with progress information
+  <Expandable title="types">
+    - `SetLabel` - Status message string
+    - `SetProgress` - Progress value (0-100)
+    - `SetMax` - Maximum progress value
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="process-output" type="string">
+  Game console output (stdout and stderr)
+</ResponseField>
+
+<ResponseField name="client-error" type="void">
+  Emitted when the client crashes or fails to start
+</ResponseField>
+
+<ResponseField name="client-exited" type="void">
+  Emitted when the client exits normally
+</ResponseField>
+
+<Warning>
+  Returns an error if the client is already running: `"client is already running"`
+</Warning>
+
+---
+
+### terminate
+
+Terminate the currently running Minecraft client.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn terminate(app_state: tauri::State<'_, AppState>) -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('terminate');
+```
+</CodeGroup>
+
+<ResponseField name="result" type="void">
+  Returns nothing. Sends SIGTERM to the running client process.
+</ResponseField>
+
+<Info>
+  Does nothing if no client is currently running.
+</Info>
+
+## Build Management
+
+### request_branches
+
+Retrieve all available LiquidBounce branches from the API.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn request_branches(client: Client) -> Result<Branches, String>
+```
+
+```javascript Usage
+const branches = await invoke('request_branches', {
+  client: clientInstance
+});
+
+console.log('Default:', branches.defaultBranch);
+console.log('Available:', branches.branches);
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ResponseField name="Branches" type="object">
+  <Expandable title="properties">
+    <ResponseField name="defaultBranch" type="string">
+      The recommended default branch (e.g., "nextgen")
+    </ResponseField>
+    <ResponseField name="branches" type="string[]">
+      Array of all available branch names
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Info>
+  This command uses exponential backoff retry logic for reliability.
+</Info>
+
+---
+
+### request_builds
+
+Retrieve builds for a specific branch.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn request_builds(
+    client: Client,
+    branch: &str,
+    release: bool
+) -> Result<Vec<Build>, String>
+```
+
+```javascript Usage
+// Get all builds (including nightlies)
+const builds = await invoke('request_builds', {
+  client: clientInstance,
+  branch: 'nextgen',
+  release: false
+});
+
+// Get only release builds
+const releases = await invoke('request_builds', {
+  client: clientInstance,
+  branch: 'nextgen',
+  release: true
+});
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="branch" type="string" required>
+  The branch name (e.g., "nextgen", "legacy")
+</ParamField>
+
+<ParamField path="release" type="boolean" required>
+  If true, only return release builds. If false, return all builds.
+</ParamField>
+
+<ResponseField name="Build[]" type="array">
+  Array of build objects
+  <Expandable title="Build properties">
+    <ResponseField name="buildId" type="number">
+      Unique build identifier
+    </ResponseField>
+    <ResponseField name="commitId" type="string">
+      Git commit hash
+    </ResponseField>
+    <ResponseField name="branch" type="string">
+      Branch name
+    </ResponseField>
+    <ResponseField name="subsystem" type="string">
+      Mod loader (e.g., "fabric", "forge")
+    </ResponseField>
+    <ResponseField name="lbVersion" type="string">
+      LiquidBounce version
+    </ResponseField>
+    <ResponseField name="mcVersion" type="string">
+      Minecraft version (e.g., "1.20.1")
+    </ResponseField>
+    <ResponseField name="release" type="boolean">
+      Whether this is a release build
+    </ResponseField>
+    <ResponseField name="date" type="string">
+      Build date (ISO 8601)
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Commit message
+    </ResponseField>
+    <ResponseField name="url" type="string">
+      GitHub commit URL
+    </ResponseField>
+    <ResponseField name="jreDistribution" type="string">
+      Recommended Java distribution
+    </ResponseField>
+    <ResponseField name="jreVersion" type="number">
+      Java version (e.g., 17, 21)
+    </ResponseField>
+    <ResponseField name="fabricApiVersion" type="string">
+      Fabric API version (if applicable)
+    </ResponseField>
+    <ResponseField name="fabricLoaderVersion" type="string">
+      Fabric Loader version (if applicable)
+    </ResponseField>
+    <ResponseField name="kotlinVersion" type="string">
+      Kotlin version
+    </ResponseField>
+    <ResponseField name="kotlinModVersion" type="string">
+      Kotlin mod version
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### fetch_changelog
+
+Fetch the changelog for a specific build.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn fetch_changelog(
+    client: Client,
+    build_id: u32
+) -> Result<Changelog, String>
+```
+
+```javascript Usage
+const changelog = await invoke('fetch_changelog', {
+  client: clientInstance,
+  buildId: 12345
+});
+
+console.log('Build:', changelog.build);
+console.log('Changes:', changelog.changelog);
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="build_id" type="number" required>
+  The build ID
+</ParamField>
+
+<ResponseField name="Changelog" type="object">
+  <Expandable title="properties">
+    <ResponseField name="build" type="Build">
+      Full build information
+    </ResponseField>
+    <ResponseField name="changelog" type="string">
+      Markdown-formatted changelog
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Blog & News
+
+### fetch_blog_posts
+
+Fetch blog posts from the LiquidBounce blog with pagination.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn fetch_blog_posts(
+    client: Client,
+    page: u32
+) -> Result<PaginatedResponse<BlogPost>, String>
+```
+
+```javascript Usage
+const result = await invoke('fetch_blog_posts', {
+  client: clientInstance,
+  page: 1
+});
+
+console.log('Posts:', result.items);
+console.log('Current page:', result.pagination.current);
+console.log('Total pages:', result.pagination.pages);
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="page" type="number" required>
+  Page number (1-indexed)
+</ParamField>
+
+<ResponseField name="PaginatedResponse" type="object">
+  <Expandable title="properties">
+    <ResponseField name="items" type="BlogPost[]">
+      Array of blog posts
+      <Expandable title="BlogPost properties">
+        <ResponseField name="postId" type="number">
+          Unique post identifier
+        </ResponseField>
+        <ResponseField name="postUid" type="string">
+          Unique post string identifier
+        </ResponseField>
+        <ResponseField name="author" type="string">
+          Post author name
+        </ResponseField>
+        <ResponseField name="title" type="string">
+          Post title
+        </ResponseField>
+        <ResponseField name="description" type="string">
+          Post description/excerpt
+        </ResponseField>
+        <ResponseField name="date" type="string">
+          Publication date
+        </ResponseField>
+        <ResponseField name="bannerText" type="string">
+          Banner text overlay
+        </ResponseField>
+        <ResponseField name="bannerImageUrl" type="string">
+          Banner image URL
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="pagination" type="object">
+      Pagination metadata
+      <Expandable title="properties">
+        <ResponseField name="current" type="number">
+          Current page number
+        </ResponseField>
+        <ResponseField name="pages" type="number">
+          Total number of pages
+        </ResponseField>
+        <ResponseField name="items" type="number">
+          Total number of items
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Mod Management
+
+### request_mods
+
+Retrieve available mods for a specific Minecraft version and subsystem.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn request_mods(
+    client: Client,
+    mc_version: &str,
+    subsystem: &str,
+) -> Result<Vec<LoaderMod>, String>
+```
+
+```javascript Usage
+const mods = await invoke('request_mods', {
+  client: clientInstance,
+  mcVersion: '1.20.1',
+  subsystem: 'fabric'
+});
+```
+</CodeGroup>
+
+<ParamField path="client" type="Client" required>
+  The LiquidBounce API client instance
+</ParamField>
+
+<ParamField path="mc_version" type="string" required>
+  Minecraft version (e.g., "1.20.1")
+</ParamField>
+
+<ParamField path="subsystem" type="string" required>
+  Mod loader ("fabric" or "forge")
+</ParamField>
+
+<ResponseField name="LoaderMod[]" type="array">
+  Array of available mods
+  <Expandable title="LoaderMod properties">
+    <ResponseField name="required" type="boolean">
+      Whether the mod is required
+    </ResponseField>
+    <ResponseField name="enabled" type="boolean">
+      Whether the mod is enabled by default
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Mod name
+    </ResponseField>
+    <ResponseField name="source" type="ModSource">
+      Download source information
+      <Expandable title="ModSource types">
+        **Repository:**
+        - `type: "repository"`
+        - `repository: string` - Maven repository name
+        - `artifact: string` - Maven artifact coordinates
+
+        **SkipAd:**
+        - `type: "skip"`
+        - `artifactName: string`
+        - `url: string` - Skip file URL
+        - `extract: boolean` - Whether to extract
+
+        **Local:**
+        - `type: "local"`
+        - `fileName: string`
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### get_custom_mods
+
+Get custom mods installed for a specific branch and Minecraft version.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn get_custom_mods(
+    branch: &str,
+    mc_version: &str,
+) -> Result<Vec<LoaderMod>, String>
+```
+
+```javascript Usage
+const customMods = await invoke('get_custom_mods', {
+  branch: 'nextgen',
+  mcVersion: '1.20.1'
+});
+```
+</CodeGroup>
+
+<ParamField path="branch" type="string" required>
+  Branch name
+</ParamField>
+
+<ParamField path="mc_version" type="string" required>
+  Minecraft version
+</ParamField>
+
+<ResponseField name="LoaderMod[]" type="array">
+  Array of custom mods (with source type "local")
+</ResponseField>
+
+---
+
+### install_custom_mod
+
+Install a custom mod from a file path.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn install_custom_mod(
+    branch: &str,
+    mc_version: &str,
+    path: PathBuf,
+) -> Result<(), String>
+```
+
+```javascript Usage
+import { open } from '@tauri-apps/plugin-dialog';
+
+const file = await open({
+  filters: [{ name: 'JAR Files', extensions: ['jar'] }]
+});
+
+if (file) {
+  await invoke('install_custom_mod', {
+    branch: 'nextgen',
+    mcVersion: '1.20.1',
+    path: file.path
+  });
+}
+```
+</CodeGroup>
+
+<ParamField path="branch" type="string" required>
+  Branch name
+</ParamField>
+
+<ParamField path="mc_version" type="string" required>
+  Minecraft version
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Absolute path to the JAR file
+</ParamField>
+
+<ResponseField name="result" type="void">
+  Returns nothing on success. The file is copied to the custom mods directory.
+</ResponseField>
+
+---
+
+### delete_custom_mod
+
+Delete a custom mod.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn delete_custom_mod(
+    branch: &str,
+    mc_version: &str,
+    mod_name: &str,
+) -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('delete_custom_mod', {
+  branch: 'nextgen',
+  mcVersion: '1.20.1',
+  modName: 'my-custom-mod.jar'
+});
+```
+</CodeGroup>
+
+<ParamField path="branch" type="string" required>
+  Branch name
+</ParamField>
+
+<ParamField path="mc_version" type="string" required>
+  Minecraft version
+</ParamField>
+
+<ParamField path="mod_name" type="string" required>
+  Mod file name (including .jar extension)
+</ParamField>
+
+<ResponseField name="result" type="void">
+  Returns nothing on success
+</ResponseField>
+
+## Data Commands
+
+### get_options
+
+Retrieve the current launcher options from disk.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn get_options() -> Result<Options, String>
+```
+
+```javascript Usage
+const options = await invoke('get_options');
+```
+</CodeGroup>
+
+<ResponseField name="Options" type="object">
+  Complete launcher configuration (see `run_client` for structure)
+</ResponseField>
+
+---
+
+### store_options
+
+Save launcher options to disk.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn store_options(options: Options) -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('store_options', {
+  options: modifiedOptions
+});
+```
+</CodeGroup>
+
+<ParamField path="options" type="Options" required>
+  The options object to save
+</ParamField>
+
+---
+
+### clear_data
+
+Delete cached game data (assets, libraries, etc.).
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn clear_data(options: Options) -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('clear_data', {
+  options: currentOptions
+});
+```
+</CodeGroup>
+
+<ParamField path="options" type="Options" required>
+  Options to determine the data directory location
+</ParamField>
+
+<Warning>
+  This permanently deletes:
+  - assets
+  - gameDir
+  - libraries
+  - mod_cache
+  - natives
+  - runtimes
+  - versions
+</Warning>
+
+---
+
+### default_data_folder_path
+
+Get the default data folder path for this platform.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn default_data_folder_path() -> Result<String, String>
+```
+
+```javascript Usage
+const path = await invoke('default_data_folder_path');
+console.log('Default data path:', path);
+```
+</CodeGroup>
+
+<ResponseField name="path" type="string">
+  Absolute path to the default data directory
+</ResponseField>
+
+## System Commands
+
+### get_launcher_version
+
+Get the current launcher version.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn get_launcher_version() -> Result<String, String>
+```
+
+```javascript Usage
+const version = await invoke('get_launcher_version');
+```
+</CodeGroup>
+
+<ResponseField name="version" type="string">
+  Launcher version string (e.g., "2.0.0")
+</ResponseField>
+
+---
+
+### sys_memory
+
+Get system memory in megabytes.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) fn sys_memory() -> u64
+```
+
+```javascript Usage
+const memoryMB = await invoke('sys_memory');
+console.log(`System has ${memoryMB} MB of RAM`);
+```
+</CodeGroup>
+
+<ResponseField name="memory" type="number">
+  Total system memory in megabytes
+</ResponseField>
+
+---
+
+### setup_client
+
+Initialize the LiquidBounce API client with a session token.
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn setup_client(session_token: String) -> Result<Client, String>
+```
+
+```javascript Usage
+const client = await invoke('setup_client', {
+  sessionToken: 'your-session-token'
+});
+```
+</CodeGroup>
+
+<ParamField path="session_token" type="string" required>
+  Session token for API authentication
+</ParamField>
+
+<ResponseField name="Client" type="object">
+  Initialized API client instance
+  <Expandable title="properties">
+    <ResponseField name="url" type="string">
+      API endpoint URL
+    </ResponseField>
+    <ResponseField name="isSecure" type="boolean">
+      Whether using HTTPS
+    </ResponseField>
+    <ResponseField name="sessionToken" type="string">
+      The session token
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Info>
+  This command automatically finds the first available API endpoint using fallback logic.
+</Info>
+
+---
+
+### check_system
+
+Perform system checks before launching (Windows only).
+
+<CodeGroup>
+```rust Signature
+#[tauri::command]
+pub(crate) async fn check_system() -> Result<(), String>
+```
+
+```javascript Usage
+await invoke('check_system');
+```
+</CodeGroup>
+
+<ResponseField name="result" type="void">
+  Returns nothing on success
+</ResponseField>
+
+<Info>
+  On Windows, this checks the hosts file for potential issues. On other platforms, this is a no-op.
+</Info>
+
+## Source Code
+
+- Client commands: `src-tauri/src/app/gui/commands/client.rs:1`
+- Data commands: `src-tauri/src/app/gui/commands/data.rs:1`
+- System commands: `src-tauri/src/app/gui/commands/system.rs:1`

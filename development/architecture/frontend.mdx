@@ -1,0 +1,487 @@
+---
+title: Frontend Architecture
+description: Svelte component structure, UI organization, and state management
+---
+
+The LiquidLauncher frontend is built with **Svelte** and **Vite**, providing a reactive, component-based UI with minimal overhead.
+
+## Component Hierarchy
+
+The frontend follows a clear hierarchical structure:
+
+```
+App.svelte
+└── Window.svelte (Main entry point)
+    ├── LoadingScreen.svelte
+    ├── ErrorScreen.svelte
+    ├── NonSecureConnectionScreen.svelte
+    ├── LoginScreen.svelte
+    │   ├── Facts.svelte
+    │   └── LoginModal.svelte
+    └── MainScreen.svelte
+        ├── MainHeader.svelte
+        ├── Account.svelte
+        ├── LaunchArea.svelte
+        │   ├── ButtonLaunchArea.svelte
+        │   ├── VersionSelect.svelte
+        │   └── VersionWarning.svelte
+        ├── Settings.svelte
+        ├── ClientLog.svelte
+        └── NewsArea.svelte
+```
+
+## Root Components
+
+### App.svelte
+
+The application root - minimal wrapper that renders the main `Window` component:
+
+```svelte title="src/App.svelte"
+<script>
+    import Window from "./lib/Window.svelte";
+</script>
+
+<main>
+    <Window />
+</main>
+```
+
+### Window.svelte
+
+The main application controller that handles:
+- **Initialization**: Loading options, setting up API client
+- **Routing**: Switching between screens based on state
+- **Updates**: Checking for and installing launcher updates
+- **Error Handling**: Global error boundary
+
+```svelte title="src/lib/Window.svelte:92-96"
+onMount(async () => {
+    await setupOptions();
+    await Promise.all([handleUpdate(), setupClient(), checkSystem()]);
+    loading = false;
+});
+```
+
+<Accordion title="Window.svelte State Management">
+
+```javascript title="src/lib/Window.svelte:13-19"
+let loading = true;
+let error = null;
+let options = null;
+let client = null;
+
+// Asks if the user allows non-secure connections
+let allowNonSecure = false;
+```
+
+The `options` object includes a `store()` method for persistence:
+
+```javascript title="src/lib/Window.svelte:44-54"
+options = {
+    store: async function () {
+        console.debug("Storing options...", options);
+        try {
+            await invoke("store_options", {options});
+        } catch (error) {
+            console.error("Failed to store options:", error);
+            throw error;
+        }
+    },
+    ...await invoke("get_options")
+};
+```
+
+</Accordion>
+
+### Screen Routing
+
+The `Window` component conditionally renders screens:
+
+```svelte title="src/lib/Window.svelte:102-121"
+{#if error}
+    <ErrorScreen {error} />
+{:else if loading || !client}
+    <LoadingScreen />
+{:else if client && !client.is_secure && !allowNonSecure}
+    <NonSecureConnectionScreen
+        on:allowNonSecure={() => { allowNonSecure = true; }}
+        on:cancel={async () => { await exit(0); }}
+    />
+{:else if options}
+    {#if options.start.account}
+        <MainScreen {client} bind:options bind:error />
+    {:else}
+        <LoginScreen bind:options />
+    {/if}
+{/if}
+```
+
+## Component Structure
+
+### src/lib/main/
+
+Contains the primary launcher interface components:
+
+<Accordion title="Main Screen Components">
+
+#### MainScreen.svelte
+
+The primary interface after login. Manages:
+- Branch and build selection
+- Mod management
+- Launch process
+- Progress tracking
+- Log viewing
+- Settings
+
+Key responsibilities from `src/lib/main/MainScreen.svelte`:
+- Fetches branches and builds from API
+- Handles launch button click
+- Listens for progress updates and client output
+- Manages running state
+
+#### LaunchArea.svelte
+
+The central launch control area containing:
+- Version selector
+- Launch button
+- Version warnings
+
+#### VersionSelect.svelte
+
+Dropdown for selecting:
+- Branch (stable, beta, etc.)
+- Specific build
+- Release vs. development builds
+
+#### Account.svelte
+
+Displays current Minecraft account with logout option
+
+#### MainHeader.svelte
+
+Top bar with:
+- Logo
+- Navigation (News, Settings, Logs)
+
+</Accordion>
+
+### src/lib/login/
+
+Authentication interface components:
+
+<Accordion title="Login Components">
+
+#### LoginScreen.svelte
+
+Main login interface with:
+- Microsoft login button
+- Offline mode button
+- Fun facts display
+
+#### LoginModal.svelte
+
+Modal dialog for login options with animated buttons
+
+#### Facts.svelte
+
+Displays random facts while waiting
+
+</Accordion>
+
+### src/lib/settings/
+
+Reusable settings input components:
+
+<Accordion title="Settings Components">
+
+Each setting component follows a consistent pattern:
+
+- **RangeSetting.svelte** - Slider for numeric values (memory, etc.)
+- **SelectSetting.svelte** - Dropdown for options
+- **DirectorySelectorSetting.svelte** - File system directory picker
+- **FileSelectorSetting.svelte** - File picker
+- **ButtonSetting.svelte** - Clickable action button
+- **IconButtonSetting.svelte** - Icon-based button
+- **CustomModSetting.svelte** - Custom mod management
+
+Example structure:
+```svelte
+<script>
+    export let label;
+    export let description;
+    export let value;
+    // Component-specific props
+</script>
+
+<div class="setting">
+    <label>{label}</label>
+    <Description {description} />
+    <!-- Input control -->
+</div>
+```
+
+</Accordion>
+
+### src/lib/common/
+
+Shared UI components used throughout:
+
+- **TitleBar.svelte** - Window title bar with controls
+- **ButtonClose.svelte** - Close button
+- **Logo.svelte** - LiquidBounce logo
+- **ToolTip.svelte** - Tooltip component
+- **VerticalFlexWrapper.svelte** - Layout helper
+- **SocialBar.svelte** - Social media links
+
+## State Management
+
+LiquidLauncher uses Svelte's built-in reactivity rather than external state management:
+
+### Reactive Declarations
+
+```javascript
+let selectedBranch = "stable";
+let builds = [];
+
+// Automatically re-runs when selectedBranch changes
+$: if (selectedBranch) {
+    loadBuilds(selectedBranch);
+}
+```
+
+### Props Binding
+
+Two-way binding with `bind:` directive:
+
+```svelte
+<MainScreen bind:options bind:error />
+```
+
+Child component can modify parent's state:
+
+```javascript
+// In MainScreen
+export let options;
+options.start.memory = 4096; // Updates parent
+```
+
+### Component Events
+
+Custom events for component communication:
+
+```svelte
+<!-- Parent -->
+<LoginModal on:login={handleLogin} />
+
+<!-- Child -->
+<script>
+    import { createEventDispatcher } from 'svelte';
+    const dispatch = createEventDispatcher();
+    
+    function doLogin() {
+        dispatch('login', { account: data });
+    }
+</script>
+```
+
+## Tauri Integration
+
+The frontend communicates with Rust backend via Tauri's API:
+
+### Invoking Commands
+
+```javascript
+import { invoke } from "@tauri-apps/api/core";
+
+// Simple command
+const version = await invoke("get_launcher_version");
+
+// Command with parameters
+const builds = await invoke("request_builds", {
+    client: client,
+    branch: "stable",
+    release: true
+});
+
+// Error handling
+try {
+    await invoke("run_client", { /* params */ });
+} catch (error) {
+    console.error("Launch failed:", error);
+}
+```
+
+### Listening for Events
+
+```javascript
+import { listen } from "@tauri-apps/api/event";
+
+// Progress updates
+const unlisten = await listen("progress-update", (event) => {
+    console.log("Progress:", event.payload);
+    progressBar.value = event.payload.progress;
+});
+
+// Process output
+await listen("process-output", (event) => {
+    logs.push(event.payload);
+});
+
+// Client exited
+await listen("client-exited", () => {
+    running = false;
+    console.log("Game closed");
+});
+
+// Cleanup on component destroy
+onDestroy(() => {
+    unlisten();
+});
+```
+
+### System Integration
+
+Other Tauri plugins used:
+
+```javascript
+import { check } from "@tauri-apps/plugin-updater";
+import { exit, relaunch } from "@tauri-apps/plugin-process";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-opener";
+
+// Check for updates
+const update = await check();
+if (update?.available) {
+    await update.downloadAndInstall();
+    await relaunch();
+}
+
+// Confirm dialog
+const confirmed = await ask("Are you sure?", "Confirm");
+
+// Open URL in browser
+await open("https://liquidbounce.net");
+```
+
+## Component Lifecycle
+
+Svelte components have four lifecycle hooks:
+
+```javascript
+import { onMount, onDestroy, beforeUpdate, afterUpdate } from 'svelte';
+
+onMount(() => {
+    console.log('Component mounted');
+    // Setup code here
+    
+    return () => {
+        // Cleanup (same as onDestroy)
+    };
+});
+
+onDestroy(() => {
+    console.log('Component destroyed');
+    // Cleanup subscriptions, timers, etc.
+});
+
+beforeUpdate(() => {
+    // Runs before DOM updates
+});
+
+afterUpdate(() => {
+    // Runs after DOM updates
+});
+```
+
+## Styling
+
+Components use scoped CSS:
+
+```svelte
+<div class="container">
+    <h1>Title</h1>
+</div>
+
+<style>
+    .container {
+        background-color: rgba(0, 0, 0, 0.6);
+        padding: 32px;
+    }
+    
+    h1 {
+        color: white;
+        font-size: 24px;
+    }
+    
+    /* Media queries */
+    @media (prefers-color-scheme: light) {
+        .container {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+    }
+</style>
+```
+
+<Note>
+Styles are automatically scoped to the component - they won't leak to other components.
+</Note>
+
+## Best Practices
+
+<Note>
+**Use reactive statements (`$:`)** for derived values rather than manually updating variables
+</Note>
+
+<Note>
+**Destructure props** at the top of the script block for clarity
+</Note>
+
+<Note>
+**Handle async errors** - Always wrap `invoke()` calls in try-catch
+</Note>
+
+<Note>
+**Clean up listeners** - Use `onDestroy()` to unsubscribe from events
+</Note>
+
+<Note>
+**Bind sparingly** - Two-way binding is convenient but can make data flow harder to track
+</Note>
+
+## Development Tools
+
+### Vite Dev Server
+
+Fast development with hot module replacement:
+
+```bash
+npm run dev
+# or
+bun run dev
+```
+
+### Svelte DevTools
+
+Browser extension for inspecting component hierarchy and state (available for Chrome/Firefox)
+
+### Console Logging
+
+Svelte preserves your console.log statements:
+
+```javascript
+console.log("Current state:", options);
+console.debug("Debug info");
+console.error("Error occurred:", error);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Backend Architecture" icon="rust" href="./backend">
+    Learn about Rust modules and Tauri commands
+  </Card>
+  <Card title="Launcher Core" icon="rocket" href="./launcher-core">
+    Deep dive into the game launch process
+  </Card>
+</CardGroup>

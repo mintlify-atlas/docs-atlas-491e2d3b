@@ -1,0 +1,441 @@
+---
+title: Custom Mods
+description: Custom mod installation and management system
+icon: puzzle-piece
+---
+
+LiquidLauncher allows you to install and manage custom mods alongside the default mod configuration.
+
+## Mod Structure
+
+Mods in LiquidLauncher follow a structured format:
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LoaderMod {
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    #[serde(alias = "default")]
+    pub enabled: bool,
+    pub name: String,
+    pub source: ModSource,
+}
+```
+
+<Accordion title="Mod properties">
+  - **required**: Whether the mod is mandatory for the build
+  - **enabled**: Whether the mod is currently active
+  - **name**: Display name of the mod
+  - **source**: How to obtain the mod (SkipAd, Repository, or Local)
+</Accordion>
+
+## Mod Sources
+
+Mods can come from three different sources:
+
+<CodeGroup>
+```rust SkipAd Source
+#[serde(rename = "skip")]
+SkipAd {
+    artifact_name: String,
+    url: String,
+    #[serde(default)]
+    extract: bool,
+}
+```
+
+```rust Repository Source
+#[serde(rename = "repository")]
+Repository {
+    repository: String,
+    artifact: String,
+}
+```
+
+```rust Local Source
+#[serde(rename = "local")]
+Local { 
+    file_name: String 
+}
+```
+</CodeGroup>
+
+### Source Types Explained
+
+<CardGroup cols={3}>
+  <Card title="SkipAd" icon="link">
+    Downloads from external URLs with optional ad skip
+  </Card>
+  <Card title="Repository" icon="database">
+    Downloads from Maven repositories using artifact coordinates
+  </Card>
+  <Card title="Local" icon="folder">
+    Uses locally installed custom mods
+  </Card>
+</CardGroup>
+
+## Fetching Available Mods
+
+The API provides a list of compatible mods for each Minecraft version:
+
+```rust src-tauri/src/app/client_api.rs
+/// Request list of downloadable mods for mc_version and used subsystem
+pub async fn fetch_mods(&self, mc_version: &str, subsystem: &str) -> Result<Vec<LoaderMod>> {
+    self.request_from_endpoint(
+        API_V1, 
+        &format!("version/mods/{}/{}", mc_version, subsystem)
+    )
+    .await
+}
+```
+
+### Request Mods Command
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn request_mods(
+    client: Client,
+    mc_version: &str,
+    subsystem: &str,
+) -> Result<Vec<LoaderMod>, String> {
+    let mods = (|| async { client.fetch_mods(&mc_version, &subsystem).await })
+        .retry(ExponentialBuilder::default())
+        .notify(|err, dur| {
+            warn!("Failed to request mods. Retrying in {:?}. Error: {}", dur, err);
+        })
+        .await
+        .map_err(|e| format!("unable to request mods: {:?}", e))?;
+
+    Ok(mods)
+}
+```
+
+<Note>
+Mods are version-specific. The launcher ensures compatibility with your selected Minecraft version.
+</Note>
+
+## Installing Custom Mods
+
+You can install custom JAR files as mods:
+
+### Install Process
+
+<Steps>
+  <Step title="Select Mod File">
+    Choose a `.jar` file from your filesystem
+  </Step>
+  
+  <Step title="Call Install Command">
+    ```rust src-tauri/src/app/gui/commands/client.rs
+    #[tauri::command]
+    pub(crate) async fn install_custom_mod(
+        branch: &str,
+        mc_version: &str,
+        path: PathBuf,
+    ) -> Result<(), String> {
+        let data = LAUNCHER_DIRECTORY.data_dir();
+        let mod_cache_path = data
+            .join("custom_mods")
+            .join(format!("{}-{}", branch, mc_version));
+
+        if !mod_cache_path.exists() {
+            fs::create_dir_all(&mod_cache_path).await.unwrap();
+        }
+
+        if let Some(file_name) = path.file_name() {
+            let dest_path = mod_cache_path.join(file_name.to_str().unwrap());
+
+            fs::copy(path, dest_path)
+                .await
+                .map_err(|e| format!("unable to copy custom mod: {:?}", e))?;
+            return Ok(());
+        }
+
+        Err("unable to copy custom mod: invalid path".to_string())
+    }
+    ```
+  </Step>
+  
+  <Step title="Mod is Copied">
+    The mod is copied to the custom mods directory for the specific branch and Minecraft version
+  </Step>
+</Steps>
+
+### Storage Structure
+
+Custom mods are stored in a version-specific directory:
+
+```
+~/.liquidlauncher/data/custom_mods/
+├── nextgen-1.20.1/
+│   ├── MyCustomMod.jar
+│   └── AnotherMod.jar
+├── nextgen-1.19.4/
+│   └── LegacyMod.jar
+└── legacy-1.12.2/
+    └── OldMod.jar
+```
+
+<Note>
+Mods are isolated by branch and Minecraft version to prevent compatibility issues.
+</Note>
+
+## Retrieving Custom Mods
+
+The launcher can list all installed custom mods:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn get_custom_mods(
+    branch: &str,
+    mc_version: &str,
+) -> Result<Vec<LoaderMod>, String> {
+    let data = LAUNCHER_DIRECTORY.data_dir();
+    let mod_cache_path = data
+        .join("custom_mods")
+        .join(format!("{}-{}", branch, mc_version));
+
+    if !mod_cache_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut mods = vec![];
+    let mut mods_read = fs::read_dir(&mod_cache_path)
+        .await
+        .map_err(|e| format!("unable to read custom mods: {:?}", e))?;
+
+    while let Some(entry) = mods_read
+        .next_entry()
+        .await
+        .map_err(|e| format!("unable to read custom mods: {:?}", e))?
+    {
+        let file_type = entry
+            .file_type()
+            .await
+            .map_err(|e| format!("unable to read custom mods: {:?}", e))?;
+        let file_name = entry.file_name().to_str().unwrap().to_string();
+
+        if file_type.is_file() && file_name.ends_with(".jar") {
+            // todo: pull name from JAR manifest
+            let file_name_without_extension = file_name.replace(".jar", "");
+
+            mods.push(LoaderMod {
+                required: false,
+                enabled: true,
+                name: file_name_without_extension,
+                source: ModSource::Local { file_name },
+            });
+        }
+    }
+
+    Ok(mods)
+}
+```
+
+<Accordion title="Custom mod properties">
+  - All custom mods are **non-required** (can be disabled)
+  - Default state is **enabled**
+  - Name is derived from filename (without `.jar` extension)
+  - Source is set to `Local` with the original filename
+</Accordion>
+
+## Deleting Custom Mods
+
+Remove installed custom mods:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+#[tauri::command]
+pub(crate) async fn delete_custom_mod(
+    branch: &str,
+    mc_version: &str,
+    mod_name: &str,
+) -> Result<(), String> {
+    let data = LAUNCHER_DIRECTORY.data_dir();
+    let mod_cache_path = data
+        .join("custom_mods")
+        .join(format!("{}-{}", branch, mc_version));
+
+    if !mod_cache_path.exists() {
+        return Ok(());
+    }
+
+    let mod_path = mod_cache_path.join(mod_name);
+
+    if mod_path.exists() {
+        fs::remove_file(mod_path)
+            .await
+            .map_err(|e| format!("unable to delete custom mod: {:?}", e))?;
+    }
+
+    Ok(())
+}
+```
+
+<Note>
+Deleting a mod only removes it from the launcher's storage. Your original file remains untouched.
+</Note>
+
+## Mod Path Resolution
+
+Mods resolve to different paths based on their source:
+
+```rust src-tauri/src/app/client_api.rs
+impl ModSource {
+    pub fn get_path(&self) -> Result<String> {
+        Ok(match self {
+            ModSource::SkipAd { artifact_name, .. } => {
+                format!("{}.jar", artifact_name)
+            }
+            ModSource::Repository { artifact, .. } => {
+                get_maven_artifact_path(artifact)?
+            }
+            ModSource::Local { file_name } => {
+                file_name.clone()
+            }
+        })
+    }
+}
+```
+
+<Accordion title="Path examples">
+  - **SkipAd**: `liquidbounce.jar`
+  - **Repository**: `com/example/mymod/1.0.0/mymod-1.0.0.jar`
+  - **Local**: `MyCustomMod.jar`
+</Accordion>
+
+## Launching with Mods
+
+When launching the game, mods are passed to the prelauncher:
+
+```rust src-tauri/src/app/gui/commands/client.rs
+pub(crate) async fn run_client(
+    client: Client,
+    build_id: u32,
+    options: Options,
+    mods: Vec<LoaderMod>,
+    window: Window,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // ...
+    let launch_manifest = client.fetch_launch_manifest(build_id).await?;
+    
+    prelauncher::launch(
+        launch_manifest, 
+        parameters, 
+        mods,  // Custom mods merged with default mods
+        launcher_data
+    ).await
+    // ...
+}
+```
+
+### Mod Merging
+
+The prelauncher combines default mods from the manifest with custom mods:
+
+```rust src-tauri/src/minecraft/prelauncher.rs
+pub async fn launch(
+    launch_manifest: LaunchManifest,
+    parameters: StartParameter,
+    additional_mods: Vec<LoaderMod>,
+    launcher_data: LauncherData<'_, Box<ShareableWindow>>,
+) -> Result<()> {
+    // Merge launch_manifest.mods with additional_mods
+    // ...
+}
+```
+
+<Note>
+Custom mods are downloaded and installed alongside the default mods before launching.
+</Note>
+
+## Skip File Resolution
+
+For mods using SkipAd source, the launcher resolves download links:
+
+```rust src-tauri/src/app/client_api.rs
+/// Resolve direct download link from skip file pid
+pub async fn resolve_skip_file(
+    &self,
+    client_account: &ClientAccount,
+    pid: &str,
+) -> Result<SkipFileResolve> {
+    self.request_with_client_account(
+        &format!("file/resolve/{}", pid), 
+        client_account
+    )
+    .await
+}
+
+/// Uses [self.url] to create a direct download link for a file with the given pid
+pub fn get_direct_download_link(&self, pid: &str) -> String {
+    format!("{}/{}/file/{}", self.url, API_V3, pid)
+}
+```
+
+<Accordion title="Skip file process">
+  1. **Extract PID**: Get the file identifier from the skip URL
+  2. **Resolve**: Call API to get direct download link
+  3. **Download**: Fetch the mod file
+  4. **Extract** (optional): Unzip if `extract: true`
+</Accordion>
+
+## Repository Downloads
+
+Mods from Maven repositories are downloaded using artifact coordinates:
+
+```rust src-tauri/src/app/client_api.rs
+#[derive(Deserialize)]
+pub struct LaunchManifest {
+    pub repositories: BTreeMap<String, String>,
+    pub mods: Vec<LoaderMod>,
+    // ...
+}
+```
+
+Example repository configuration:
+
+```json
+{
+  "repositories": {
+    "central": "https://repo.maven.apache.org/maven2",
+    "fabric": "https://maven.fabricmc.net",
+    "kotlin": "https://maven.kotlinlang.org"
+  }
+}
+```
+
+## Future Improvements
+
+Planned enhancements for mod management:
+
+<CardGroup cols={2}>
+  <Card title="JAR Manifest Parsing" icon="file-code">
+    Extract mod name and metadata from JAR manifest
+    
+    ```rust
+    // todo: pull name from JAR manifest
+    ```
+  </Card>
+  <Card title="Mod Validation" icon="shield-check">
+    Verify mod compatibility and signatures
+  </Card>
+  <Card title="Mod Updates" icon="arrows-rotate">
+    Check for and install mod updates
+  </Card>
+  <Card title="Mod Dependencies" icon="diagram-project">
+    Automatic dependency resolution
+  </Card>
+</CardGroup>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Version Selection" icon="code-branch" href="/features/version-selection">
+    Each version has its own mod list
+  </Card>
+  <Card title="Auto-Updates" icon="arrow-rotate-right" href="/features/auto-updates">
+    Default mods update with builds
+  </Card>
+</CardGroup>
